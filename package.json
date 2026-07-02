@@ -1,0 +1,29 @@
+{
+  "name": "lensflow-oms",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 4173",
+    "build": "node scripts/build-frontend.mjs",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "start": "node server/index.js",
+    "start:server": "node server/index.js",
+    "check": "node --check server/index.js && node --check server/seed-data.js && node --check app.js"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "mongoose": "^8.9.5",
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "vite": "^6.0.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
