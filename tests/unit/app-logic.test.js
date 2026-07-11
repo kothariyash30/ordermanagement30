@@ -195,6 +195,23 @@ describe("resolveUnitPrice / resolveMinOrderQty (flat vs tiered pricing)", () =>
   });
 });
 
+describe("orderStatusCounts (admin reports: order status queue)", () => {
+  test("counts every workflow status, including zero-order statuses, from the seeded order", async () => {
+    const window = await loadApp();
+    const counts = window.orderStatusCounts();
+    // STATUSES is a top-level const, so - like `state` - it isn't exposed on
+    // window in a classic script. Assert against the fixed workflow instead.
+    expect(Object.keys(counts)).toEqual([
+      "Order Received", "Awaiting Payment", "Payment Received", "Order Processed",
+      "Order Dispatched", "Order Delivered", "Closed", "Cancelled"
+    ]);
+    // Seed data has exactly one order, status "Payment Received".
+    expect(counts["Payment Received"]).toBe(1);
+    expect(counts["Order Received"]).toBe(0);
+    expect(counts["Closed"]).toBe(0);
+  });
+});
+
 describe("initial application state", () => {
   // `state` is a top-level `let` in app.js, so unlike its function
   // declarations it is not exposed as window.state in a classic script.

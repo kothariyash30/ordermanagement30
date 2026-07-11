@@ -1423,6 +1423,12 @@ function exportProducts() {
   download("products-export.csv", csv);
 }
 
+function orderStatusCounts() {
+  const counts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
+  state.orders.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
+  return counts;
+}
+
 function reportsView() {
   const salesByCustomer = state.customers.map((c) => ({ c, orders: state.orders.filter((o) => o.customerId === c.id && o.status !== "Cancelled") })).filter((row) => row.orders.length);
   const top = {};
@@ -1431,10 +1437,12 @@ function reportsView() {
     top[line.productName].qty += line.quantity;
     top[line.productName].revenue += line.lineTotal;
   }));
+  const statusCounts = orderStatusCounts();
   return shell(`
     <div class="grid two">
       <section class="panel"><div class="section-title"><h2>Sales by dealer/retailer</h2></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Orders</th><th>Total</th></tr></thead><tbody>${salesByCustomer.map((row) => `<tr><td>${escapeHtml(row.c.name)}</td><td>${row.orders.length}</td><td>${money(row.orders.reduce((sum, o) => sum + o.grandTotal, 0))}</td></tr>`).join("")}</tbody></table></div></section>
       <section class="panel"><div class="section-title"><h2>Top products</h2></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead><tbody>${Object.entries(top).map(([name, val]) => `<tr><td>${escapeHtml(name)}</td><td>${val.qty}</td><td>${money(val.revenue)}</td></tr>`).join("")}</tbody></table></div></section>
+      <section class="panel"><div class="section-title"><div><h2>Order status</h2><p>How many orders currently sit in the queue at each workflow status.</p></div></div><div class="table-wrap"><table><thead><tr><th>Status</th><th>Orders</th></tr></thead><tbody>${STATUSES.map((status) => `<tr><td><span class="badge ${statusTone[status] || ""}">${escapeHtml(status)}</span></td><td>${statusCounts[status]}</td></tr>`).join("")}</tbody></table></div></section>
       <section class="panel">${pendingOrdersTable()}</section>
       <section class="panel"><div class="section-title"><h2>Order aging</h2></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Status</th><th>Open days</th></tr></thead><tbody>${state.orders.filter((o) => !["Closed", "Cancelled"].includes(o.status)).map((o) => `<tr><td>${escapeHtml(o.orderNumber)}</td><td>${escapeHtml(o.status)}</td><td>${Math.max(1, Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000))}</td></tr>`).join("")}</tbody></table></div></section>
     </div>`, "Reports", "Sales, pending orders, aging and best-selling products.");
