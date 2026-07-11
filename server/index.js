@@ -8,6 +8,7 @@ import { nanoid } from "nanoid";
 import rateLimit from "express-rate-limit";
 import { seedState } from "./seed-data.js";
 import { authenticate, hashPassword, requireAdmin, signToken, unusablePasswordHash, verifyPassword } from "./auth.js";
+import { isValueInRanges, resolveMinOrderQty, resolveUnitPrice } from "./catalog.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -263,16 +264,47 @@ app.post("/api/customer-actions/orders", stateWriteLimiter, authenticate, async 
         response.status(400).json({ error: `Unknown variant for product ${product.name}` });
         return;
       }
-      const minQty = Number(variant.minOrderQty || product.minOrderQty);
+      const category = doc.state.categories?.find((c) => c.id === product.categoryId);
+      const optical = product.opticalParameters;
+
+      // Power/cyl/axis are always re-validated against the product's own
+      // defined ranges - a tampered client could otherwise submit an order
+      // for a power the product was never configured to sell.
+      if (category?.hasOpticalParameters) {
+        if (!isValueInRanges(line.power, optical?.powerRanges)) {
+          response.status(400).json({ error: `Power ${line.power} is not a valid option for ${product.name}.` });
+          return;
+        }
+        if (category.hasCylAxis) {
+          if (optical?.cylPowerRange && !isValueInRanges(line.cyl, [optical.cylPowerRange])) {
+            response.status(400).json({ error: `Cyl power ${line.cyl} is not a valid option for ${product.name}.` });
+            return;
+          }
+          if (optical?.axisRange && !isValueInRanges(line.axis, [optical.axisRange])) {
+            response.status(400).json({ error: `Axis ${line.axis} is not a valid option for ${product.name}.` });
+            return;
+          }
+        }
+      }
+
       const quantity = Number(line.quantity);
+      const minQty = resolveMinOrderQty(product, variant, line.power);
       if (!Number.isFinite(quantity) || quantity < minQty) {
         response.status(400).json({ error: `Minimum order quantity for ${product.name} (${variant.name}) is ${minQty}.` });
         return;
       }
+
       // Price and GST always come from the current server-side catalog, never
       // from the client - otherwise a tampered local `state.products` could
       // submit an order at an arbitrary price.
-      const unitPrice = customer.type === "dealer" ? (variant.priceDealer || product.priceDealer) : (variant.priceRetailer || product.priceRetailer);
+      let unitPrice;
+      try {
+        unitPrice = resolveUnitPrice(product, variant, line.power, customer.type);
+      } catch (error) {
+        response.status(400).json({ error: `${product.name}: ${error.message}` });
+        return;
+      }
+
       lineItems.push({
         lineItemId: "li-" + nanoid(),
         productId: product.id,
@@ -281,9 +313,9 @@ app.post("/api/customer-actions/orders", stateWriteLimiter, authenticate, async 
         productName: product.name,
         variantName: variant.name,
         specifications: {
-          power: String(line.power ?? "").slice(0, 40),
-          baseCurve: String(line.baseCurve ?? "").slice(0, 40),
-          diameter: String(line.diameter ?? "").slice(0, 40)
+          power: category?.hasOpticalParameters ? line.power ?? null : null,
+          cyl: category?.hasCylAxis ? line.cyl ?? null : null,
+          axis: category?.hasCylAxis ? line.axis ?? null : null
         },
         quantity,
         unitPrice,
@@ -367,7 +399,7 @@ app.get("/api/state", authenticate, async (_request, response, next) => {
   }
 });
 
-const STATE_ARRAY_FIELDS = ["adminUsers", "customers", "brands", "products", "orders", "notificationSettings", "cart"];
+const STATE_ARRAY_FIELDS = ["adminUsers", "customers", "brands", "categories", "products", "orders", "notificationSettings", "cart"];
 
 function isValidStateShape(state) {
   if (!state || typeof state !== "object" || Array.isArray(state)) return false;

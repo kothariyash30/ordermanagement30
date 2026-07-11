@@ -25,7 +25,18 @@ const STATUSES = [
   "Cancelled"
 ];
 
-function item(productId, variantId, brand, productName, variantName, power, baseCurve, diameter, quantity, unitPrice, gstRate) {
+// A product's category decides which optical-parameter blocks apply - not
+// every lens has a prescription (plano/cosmetic), and only toric lenses need
+// cylinder power + axis on top of sphere power. Variant axes (color/pack
+// size) and pricing mode (flat/tiered) are per-product choices, independent
+// of category.
+const CATEGORIES = [
+  { id: "cat-optical-sphere", name: "Optical Lens - Sphere Power", hasOpticalParameters: true, hasCylAxis: false },
+  { id: "cat-optical-toric", name: "Optical Lens - Toric (Sphere + Cyl + Axis)", hasOpticalParameters: true, hasCylAxis: true },
+  { id: "cat-plano", name: "Plano / Cosmetic (No Power)", hasOpticalParameters: false, hasCylAxis: false }
+];
+
+function item(productId, variantId, brand, productName, variantName, power, cyl, axis, quantity, unitPrice, gstRate) {
   return {
     lineItemId: "li-" + Math.random().toString(36).slice(2, 9),
     productId,
@@ -33,7 +44,7 @@ function item(productId, variantId, brand, productName, variantName, power, base
     brand,
     productName,
     variantName,
-    specifications: { power, baseCurve, diameter },
+    specifications: { power, cyl, axis },
     quantity,
     unitPrice,
     gstRate,
@@ -112,62 +123,165 @@ const seedState = {
     { id: "b1", name: "AquaLux", active: true },
     { id: "b2", name: "OptiWear", active: true }
   ],
+  categories: CATEGORIES,
   products: [
     {
       id: "p1",
+      categoryId: "cat-optical-sphere",
       brandId: "b1",
       name: "AquaLux Daily Clear",
       sku: "AL-DAILY-CLEAR",
       description: "Daily disposable hydrogel lenses for clear everyday wear.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Daily Disposable",
+      replacementSchedule: "Daily",
+      material: "Hydrogel",
+      waterContent: "58%",
+      diameter: "14.2mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Cast Molded",
       minOrderQty: 6,
-      priceDealer: 245,
-      priceRetailer: 310,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: {
+        edgeThickness: "0.10mm",
+        centerThicknessAtMinus3: "0.08mm",
+        powerRanges: [
+          { start: 0, end: -5.00, step: 0.25 },
+          { start: -5.50, end: -10.00, step: 0.50 }
+        ],
+        cylPowerRange: null,
+        axisRange: null
+      },
+      variantAxisValues: { color: [], packSize: ["30 Lens Pack", "90 Lens Pack"] },
+      pricing: {
+        mode: "flat",
+        flat: { mrp: 310, priceDealer: 245, priceRetailer: 310, minOrderQty: 6 },
+        tiers: []
+      },
       variants: [
-        { id: "v1", name: "30 Lens Pack", sku: "ALDC-30", minOrderQty: 6, priceDealer: 245, priceRetailer: 310, active: true },
-        { id: "v2", name: "90 Lens Pack", sku: "ALDC-90", minOrderQty: 3, priceDealer: 690, priceRetailer: 825, active: true }
+        { id: "v1", name: "30 Lens Pack", sku: "ALDC-30", color: null, packSize: "30 Lens Pack", minOrderQty: 6, active: true },
+        { id: "v2", name: "90 Lens Pack", sku: "ALDC-90", color: null, packSize: "90 Lens Pack", minOrderQty: 3, active: true }
       ]
     },
     {
       id: "p2",
+      categoryId: "cat-plano",
       brandId: "b1",
       name: "AquaLux Color",
       sku: "AL-COLOR",
       description: "Soft cosmetic lenses with breathable comfort and natural tones.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Cosmetic Monthly",
+      replacementSchedule: "Monthly",
+      material: "Hydrogel",
+      waterContent: "55%",
+      diameter: "14.0mm",
+      baseCurve: "8.7mm",
+      manufacturingMethod: "Cast Molded",
       minOrderQty: 4,
-      priceDealer: 280,
-      priceRetailer: 350,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: null,
+      variantAxisValues: { color: ["Blue", "Hazel"], packSize: [] },
+      pricing: {
+        mode: "flat",
+        flat: { mrp: 365, priceDealer: 295, priceRetailer: 365, minOrderQty: 4 },
+        tiers: []
+      },
       variants: [
-        { id: "v3", name: "Blue", sku: "ALC-BLUE", minOrderQty: 4, priceDealer: 295, priceRetailer: 365, active: true },
-        { id: "v4", name: "Hazel", sku: "ALC-HAZEL", minOrderQty: 4, priceDealer: 295, priceRetailer: 365, active: true }
+        { id: "v3", name: "Blue", sku: "ALC-BLUE", color: "Blue", packSize: null, minOrderQty: 4, active: true },
+        { id: "v4", name: "Hazel", sku: "ALC-HAZEL", color: "Hazel", packSize: null, minOrderQty: 4, active: true }
       ]
     },
     {
       id: "p3",
+      categoryId: "cat-optical-toric",
       brandId: "b2",
       name: "OptiWear Monthly Toric",
       sku: "OW-MONTHLY-TORIC",
       description: "Monthly toric lens line for repeat B2B ordering.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Toric Monthly",
+      replacementSchedule: "Monthly",
+      material: "Silicone Hydrogel",
+      waterContent: "48%",
+      diameter: "14.5mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Lathe Cut",
       minOrderQty: 6,
-      priceDealer: 520,
-      priceRetailer: 640,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: {
+        edgeThickness: "0.12mm",
+        centerThicknessAtMinus3: "0.14mm",
+        powerRanges: [
+          { start: 0, end: -5.00, step: 0.25 },
+          { start: -5.50, end: -8.00, step: 0.50 }
+        ],
+        cylPowerRange: { start: -0.75, end: -2.75, step: 0.50 },
+        axisRange: { start: 10, end: 180, step: 10 }
+      },
+      variantAxisValues: { color: [], packSize: [] },
+      pricing: {
+        mode: "flat",
+        flat: { mrp: 640, priceDealer: 520, priceRetailer: 640, minOrderQty: 6 },
+        tiers: []
+      },
       variants: [
-        { id: "v5", name: "Standard", sku: "OWMT-STD", minOrderQty: 6, priceDealer: 520, priceRetailer: 640, active: true },
-        { id: "v6", name: "Premium", sku: "OWMT-PREM", minOrderQty: 6, priceDealer: 610, priceRetailer: 745, active: true }
+        { id: "v5", name: "Standard", sku: "OWMT-STD", color: null, packSize: null, minOrderQty: 6, active: true }
+      ]
+    },
+    {
+      id: "p4",
+      categoryId: "cat-optical-sphere",
+      brandId: "b2",
+      name: "OptiWear Precision Monthly",
+      sku: "OW-PRECISION-MONTHLY",
+      description: "Extended-range monthly lens with pack- and power-tiered pricing.",
+      thumbnailImageUrl: "",
+      fullImageUrls: [],
+      productType: "Extended Range Monthly",
+      replacementSchedule: "Monthly",
+      material: "Silicone Hydrogel",
+      waterContent: "46%",
+      diameter: "14.2mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Cast Molded",
+      minOrderQty: 1,
+      gstRate: 12,
+      active: true,
+      opticalParameters: {
+        edgeThickness: "0.11mm",
+        centerThicknessAtMinus3: "0.09mm",
+        powerRanges: [
+          { start: -0.50, end: -6.00, step: 0.25 },
+          { start: -6.50, end: -12.00, step: 0.50 },
+          { start: -13.00, end: -20.00, step: 1.00 },
+          { start: 0.50, end: 4.00, step: 0.20 },
+          { start: 4.50, end: 8.00, step: 0.50 },
+          { start: 9.00, end: 10.00, step: 1.00 }
+        ],
+        cylPowerRange: null,
+        axisRange: null
+      },
+      variantAxisValues: { color: [], packSize: ["1 Pair Pack", "3 Pair Pack"] },
+      pricing: {
+        mode: "tiered",
+        flat: null,
+        tiers: [
+          { match: { packSize: "1 Pair Pack", powerGte: -10.00 }, mrp: 900, priceDealer: 650, priceRetailer: 800, minOrderQty: 2 },
+          { match: { packSize: "1 Pair Pack", powerLte: -10.50 }, mrp: 1100, priceDealer: 800, priceRetailer: 980, minOrderQty: 2 },
+          { match: { packSize: "3 Pair Pack", powerGte: -10.00 }, mrp: 2500, priceDealer: 1800, priceRetailer: 2200, minOrderQty: 1 },
+          { match: { packSize: "3 Pair Pack", powerLte: -10.50 }, mrp: 3000, priceDealer: 2200, priceRetailer: 2700, minOrderQty: 1 }
+        ]
+      },
+      variants: [
+        { id: "v6", name: "1 Pair Pack", sku: "OWPM-1PAIR", color: null, packSize: "1 Pair Pack", minOrderQty: 2, active: true },
+        { id: "v7", name: "3 Pair Pack", sku: "OWPM-3PAIR", color: null, packSize: "3 Pair Pack", minOrderQty: 1, active: true }
       ]
     }
   ],
@@ -182,8 +296,8 @@ const seedState = {
       currentVersion: 2,
       notes: "Urgent dispatch requested.",
       lineItems: [
-        item("p1", "v1", "AquaLux", "AquaLux Daily Clear", "30 Lens Pack", "-2.00", "8.6", "14.2", 12, 245, 12),
-        item("p2", "v3", "AquaLux", "AquaLux Color", "Blue", "-1.50", "8.7", "14.0", 4, 295, 12)
+        item("p1", "v1", "AquaLux", "AquaLux Daily Clear", "30 Lens Pack", -2.00, null, null, 12, 245, 12),
+        item("p2", "v3", "AquaLux", "AquaLux Color", "Blue", null, null, null, 4, 295, 12)
       ],
       createdAt: "2026-06-27T08:40:00.000Z",
       updatedAt: "2026-06-28T10:15:00.000Z",
@@ -207,4 +321,4 @@ const seedState = {
   ]
 };
 
-export { STATUSES, seedState };
+export { STATUSES, CATEGORIES, seedState };

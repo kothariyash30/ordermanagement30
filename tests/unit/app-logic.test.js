@@ -75,6 +75,126 @@ describe("withTotals (order pricing)", () => {
   });
 });
 
+describe("expandRanges (power/cyl/axis segment expansion)", () => {
+  test("expands a single descending segment", async () => {
+    const window = await loadApp();
+    expect(window.expandRanges([{ start: 0, end: -1.00, step: 0.25 }])).toEqual([0, -0.25, -0.50, -0.75, -1.00]);
+  });
+
+  test("expands a single ascending segment", async () => {
+    const window = await loadApp();
+    expect(window.expandRanges([{ start: 0.50, end: 1.50, step: 0.50 }])).toEqual([0.50, 1.00, 1.50]);
+  });
+
+  test("concatenates multiple segments with different steps and signs, matching the wide-range product spec", async () => {
+    const window = await loadApp();
+    const values = window.expandRanges([
+      { start: -0.50, end: -1.00, step: 0.25 },
+      { start: 0.50, end: 1.00, step: 0.20 }
+    ]);
+    expect(values).toEqual([-0.50, -0.75, -1.00, 0.50, 0.70, 0.90]);
+  });
+
+  test("returns an empty array for no segments", async () => {
+    const window = await loadApp();
+    expect(window.expandRanges(null)).toEqual([]);
+    expect(window.expandRanges([])).toEqual([]);
+  });
+});
+
+describe("formatPowerValue", () => {
+  test("formats zero as Plano", async () => {
+    const window = await loadApp();
+    expect(window.formatPowerValue(0)).toBe("Plano");
+  });
+
+  test("formats negative and positive powers with a sign and two decimals", async () => {
+    const window = await loadApp();
+    expect(window.formatPowerValue(-5)).toBe("-5.00");
+    expect(window.formatPowerValue(3.5)).toBe("+3.50");
+  });
+});
+
+describe("isValueInRanges", () => {
+  const ranges = [{ start: 0, end: -5.00, step: 0.25 }, { start: -5.50, end: -10.00, step: 0.50 }];
+
+  test("accepts a value that falls on the step grid", async () => {
+    const window = await loadApp();
+    expect(window.isValueInRanges(-2.00, ranges)).toBe(true);
+    expect(window.isValueInRanges(-10.00, ranges)).toBe(true);
+  });
+
+  test("rejects a value that does not fall on the step grid", async () => {
+    const window = await loadApp();
+    expect(window.isValueInRanges(-2.10, ranges)).toBe(false);
+    expect(window.isValueInRanges(-10.25, ranges)).toBe(false);
+  });
+
+  test("treats no configured ranges as accept-anything (plano/cosmetic products)", async () => {
+    const window = await loadApp();
+    expect(window.isValueInRanges(999, null)).toBe(true);
+  });
+});
+
+describe("generateVariants (variant axis cartesian product)", () => {
+  test("generates one variant per color when only color is used", async () => {
+    const window = await loadApp();
+    const variants = window.generateVariants({ sku: "ALC", variantAxisValues: { color: ["Blue", "Hazel"], packSize: [] }, minOrderQty: 4 });
+    expect(variants.map((v) => v.name)).toEqual(["Blue", "Hazel"]);
+  });
+
+  test("generates the cartesian product when both axes are used", async () => {
+    const window = await loadApp();
+    const variants = window.generateVariants({ sku: "P", variantAxisValues: { color: ["Blue", "Red"], packSize: ["Small", "Large"] }, minOrderQty: 1 });
+    expect(variants.map((v) => v.name).sort()).toEqual(["Large - Blue", "Large - Red", "Small - Blue", "Small - Red"].sort());
+  });
+
+  test("falls back to a single Standard variant when neither axis is used", async () => {
+    const window = await loadApp();
+    const variants = window.generateVariants({ sku: "P", variantAxisValues: { color: [], packSize: [] }, minOrderQty: 1 });
+    expect(variants.map((v) => v.name)).toEqual(["Standard"]);
+  });
+});
+
+describe("resolveUnitPrice / resolveMinOrderQty (flat vs tiered pricing)", () => {
+  test("flat pricing returns the dealer or retailer price directly", async () => {
+    const window = await loadApp();
+    const product = { pricing: { mode: "flat", flat: { priceDealer: 245, priceRetailer: 310 } } };
+    expect(window.resolveUnitPrice(product, {}, undefined, "dealer")).toBe(245);
+    expect(window.resolveUnitPrice(product, {}, undefined, "retailer")).toBe(310);
+  });
+
+  test("tiered pricing resolves a different price above/below the power threshold, matching the spec's pack+power example", async () => {
+    const window = await loadApp();
+    const product = {
+      pricing: {
+        mode: "tiered",
+        tiers: [
+          { match: { packSize: "1 Pair Pack", powerGte: -10.00 }, priceDealer: 650, priceRetailer: 800 },
+          { match: { packSize: "1 Pair Pack", powerLte: -10.50 }, priceDealer: 800, priceRetailer: 980 },
+          { match: { packSize: "3 Pair Pack", powerGte: -10.00 }, priceDealer: 1800, priceRetailer: 2200 }
+        ]
+      }
+    };
+    const onePair = { packSize: "1 Pair Pack" };
+    expect(window.resolveUnitPrice(product, onePair, -10.00, "dealer")).toBe(650);
+    expect(window.resolveUnitPrice(product, onePair, -10.50, "dealer")).toBe(800);
+    expect(window.resolveUnitPrice(product, { packSize: "3 Pair Pack" }, -5, "retailer")).toBe(2200);
+  });
+
+  test("throws when no tier matches the selection", async () => {
+    const window = await loadApp();
+    const product = { pricing: { mode: "tiered", tiers: [{ match: { packSize: "1 Pair Pack", powerGte: -10.00 }, priceDealer: 1, priceRetailer: 1 }] } };
+    expect(() => window.resolveUnitPrice(product, { packSize: "3 Pair Pack" }, -5, "dealer")).toThrow();
+  });
+
+  test("resolveMinOrderQty prefers a tier's own MOQ over the variant/product default", async () => {
+    const window = await loadApp();
+    const product = { minOrderQty: 5, pricing: { mode: "tiered", tiers: [{ match: { packSize: "1 Pair Pack", powerGte: -10.00 }, minOrderQty: 2 }] } };
+    expect(window.resolveMinOrderQty(product, { packSize: "1 Pair Pack", minOrderQty: 9 }, -5)).toBe(2);
+  });
+});
+
 describe("initial application state", () => {
   // `state` is a top-level `let` in app.js, so unlike its function
   // declarations it is not exposed as window.state in a classic script.

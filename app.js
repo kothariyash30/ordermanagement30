@@ -94,62 +94,157 @@ const seed = {
     { id: "b1", name: "AquaLux", active: true },
     { id: "b2", name: "OptiWear", active: true }
   ],
+  categories: [
+    { id: "cat-optical-sphere", name: "Optical Lens - Sphere Power", hasOpticalParameters: true, hasCylAxis: false },
+    { id: "cat-optical-toric", name: "Optical Lens - Toric (Sphere + Cyl + Axis)", hasOpticalParameters: true, hasCylAxis: true },
+    { id: "cat-plano", name: "Plano / Cosmetic (No Power)", hasOpticalParameters: false, hasCylAxis: false }
+  ],
   products: [
     {
       id: "p1",
+      categoryId: "cat-optical-sphere",
       brandId: "b1",
       name: "AquaLux Daily Clear",
       sku: "AL-DAILY-CLEAR",
       description: "Daily disposable hydrogel lenses for clear everyday wear.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Daily Disposable",
+      replacementSchedule: "Daily",
+      material: "Hydrogel",
+      waterContent: "58%",
+      diameter: "14.2mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Cast Molded",
       minOrderQty: 6,
-      priceDealer: 245,
-      priceRetailer: 310,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: {
+        edgeThickness: "0.10mm",
+        centerThicknessAtMinus3: "0.08mm",
+        powerRanges: [
+          { start: 0, end: -5.00, step: 0.25 },
+          { start: -5.50, end: -10.00, step: 0.50 }
+        ],
+        cylPowerRange: null,
+        axisRange: null
+      },
+      variantAxisValues: { color: [], packSize: ["30 Lens Pack", "90 Lens Pack"] },
+      pricing: { mode: "flat", flat: { mrp: 310, priceDealer: 245, priceRetailer: 310, minOrderQty: 6 }, tiers: [] },
       variants: [
-        { id: "v1", name: "30 Lens Pack", sku: "ALDC-30", minOrderQty: 6, priceDealer: 245, priceRetailer: 310, active: true },
-        { id: "v2", name: "90 Lens Pack", sku: "ALDC-90", minOrderQty: 3, priceDealer: 690, priceRetailer: 825, active: true }
+        { id: "v1", name: "30 Lens Pack", sku: "ALDC-30", color: null, packSize: "30 Lens Pack", minOrderQty: 6, active: true },
+        { id: "v2", name: "90 Lens Pack", sku: "ALDC-90", color: null, packSize: "90 Lens Pack", minOrderQty: 3, active: true }
       ]
     },
     {
       id: "p2",
+      categoryId: "cat-plano",
       brandId: "b1",
       name: "AquaLux Color",
       sku: "AL-COLOR",
       description: "Soft cosmetic lenses with breathable comfort and natural tones.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Cosmetic Monthly",
+      replacementSchedule: "Monthly",
+      material: "Hydrogel",
+      waterContent: "55%",
+      diameter: "14.0mm",
+      baseCurve: "8.7mm",
+      manufacturingMethod: "Cast Molded",
       minOrderQty: 4,
-      priceDealer: 280,
-      priceRetailer: 350,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: null,
+      variantAxisValues: { color: ["Blue", "Hazel"], packSize: [] },
+      pricing: { mode: "flat", flat: { mrp: 365, priceDealer: 295, priceRetailer: 365, minOrderQty: 4 }, tiers: [] },
       variants: [
-        { id: "v3", name: "Blue", sku: "ALC-BLUE", minOrderQty: 4, priceDealer: 295, priceRetailer: 365, active: true },
-        { id: "v4", name: "Hazel", sku: "ALC-HAZEL", minOrderQty: 4, priceDealer: 295, priceRetailer: 365, active: true }
+        { id: "v3", name: "Blue", sku: "ALC-BLUE", color: "Blue", packSize: null, minOrderQty: 4, active: true },
+        { id: "v4", name: "Hazel", sku: "ALC-HAZEL", color: "Hazel", packSize: null, minOrderQty: 4, active: true }
       ]
     },
     {
       id: "p3",
+      categoryId: "cat-optical-toric",
       brandId: "b2",
       name: "OptiWear Monthly Toric",
       sku: "OW-MONTHLY-TORIC",
       description: "Monthly toric lens line for repeat B2B ordering.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
+      productType: "Toric Monthly",
+      replacementSchedule: "Monthly",
+      material: "Silicone Hydrogel",
+      waterContent: "48%",
+      diameter: "14.5mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Lathe Cut",
       minOrderQty: 6,
-      priceDealer: 520,
-      priceRetailer: 640,
       gstRate: 12,
       active: true,
-      specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
+      opticalParameters: {
+        edgeThickness: "0.12mm",
+        centerThicknessAtMinus3: "0.14mm",
+        powerRanges: [
+          { start: 0, end: -5.00, step: 0.25 },
+          { start: -5.50, end: -8.00, step: 0.50 }
+        ],
+        cylPowerRange: { start: -0.75, end: -2.75, step: 0.50 },
+        axisRange: { start: 10, end: 180, step: 10 }
+      },
+      variantAxisValues: { color: [], packSize: [] },
+      pricing: { mode: "flat", flat: { mrp: 640, priceDealer: 520, priceRetailer: 640, minOrderQty: 6 }, tiers: [] },
       variants: [
-        { id: "v5", name: "Standard", sku: "OWMT-STD", minOrderQty: 6, priceDealer: 520, priceRetailer: 640, active: true },
-        { id: "v6", name: "Premium", sku: "OWMT-PREM", minOrderQty: 6, priceDealer: 610, priceRetailer: 745, active: true }
+        { id: "v5", name: "Standard", sku: "OWMT-STD", color: null, packSize: null, minOrderQty: 6, active: true }
+      ]
+    },
+    {
+      id: "p4",
+      categoryId: "cat-optical-sphere",
+      brandId: "b2",
+      name: "OptiWear Precision Monthly",
+      sku: "OW-PRECISION-MONTHLY",
+      description: "Extended-range monthly lens with pack- and power-tiered pricing.",
+      thumbnailImageUrl: "",
+      fullImageUrls: [],
+      productType: "Extended Range Monthly",
+      replacementSchedule: "Monthly",
+      material: "Silicone Hydrogel",
+      waterContent: "46%",
+      diameter: "14.2mm",
+      baseCurve: "8.6mm",
+      manufacturingMethod: "Cast Molded",
+      minOrderQty: 1,
+      gstRate: 12,
+      active: true,
+      opticalParameters: {
+        edgeThickness: "0.11mm",
+        centerThicknessAtMinus3: "0.09mm",
+        powerRanges: [
+          { start: -0.50, end: -6.00, step: 0.25 },
+          { start: -6.50, end: -12.00, step: 0.50 },
+          { start: -13.00, end: -20.00, step: 1.00 },
+          { start: 0.50, end: 4.00, step: 0.20 },
+          { start: 4.50, end: 8.00, step: 0.50 },
+          { start: 9.00, end: 10.00, step: 1.00 }
+        ],
+        cylPowerRange: null,
+        axisRange: null
+      },
+      variantAxisValues: { color: [], packSize: ["1 Pair Pack", "3 Pair Pack"] },
+      pricing: {
+        mode: "tiered",
+        flat: null,
+        tiers: [
+          { match: { packSize: "1 Pair Pack", powerGte: -10.00 }, mrp: 900, priceDealer: 650, priceRetailer: 800, minOrderQty: 2 },
+          { match: { packSize: "1 Pair Pack", powerLte: -10.50 }, mrp: 1100, priceDealer: 800, priceRetailer: 980, minOrderQty: 2 },
+          { match: { packSize: "3 Pair Pack", powerGte: -10.00 }, mrp: 2500, priceDealer: 1800, priceRetailer: 2200, minOrderQty: 1 },
+          { match: { packSize: "3 Pair Pack", powerLte: -10.50 }, mrp: 3000, priceDealer: 2200, priceRetailer: 2700, minOrderQty: 1 }
+        ]
+      },
+      variants: [
+        { id: "v6", name: "1 Pair Pack", sku: "OWPM-1PAIR", color: null, packSize: "1 Pair Pack", minOrderQty: 2, active: true },
+        { id: "v7", name: "3 Pair Pack", sku: "OWPM-3PAIR", color: null, packSize: "3 Pair Pack", minOrderQty: 1, active: true }
       ]
     }
   ],
@@ -164,8 +259,8 @@ const seed = {
       currentVersion: 2,
       notes: "Urgent dispatch requested.",
       lineItems: [
-        item("p1", "v1", "AquaLux", "AquaLux Daily Clear", "30 Lens Pack", "-2.00", "8.6", "14.2", 12, 245, 12),
-        item("p2", "v3", "AquaLux", "AquaLux Color", "Blue", "-1.50", "8.7", "14.0", 4, 295, 12)
+        item("p1", "v1", "AquaLux", "AquaLux Daily Clear", "30 Lens Pack", -2.00, null, null, 12, 245, 12),
+        item("p2", "v3", "AquaLux", "AquaLux Color", "Blue", null, null, null, 4, 295, 12)
       ],
       createdAt: "2026-06-27T08:40:00.000Z",
       updatedAt: "2026-06-28T10:15:00.000Z",
@@ -193,7 +288,7 @@ seed.orders = seed.orders.map(withTotals);
 
 let state = clone(seed);
 
-function item(productId, variantId, brand, productName, variantName, power, baseCurve, diameter, quantity, unitPrice, gstRate) {
+function item(productId, variantId, brand, productName, variantName, power, cyl, axis, quantity, unitPrice, gstRate) {
   return {
     lineItemId: "li-" + Math.random().toString(36).slice(2, 9),
     productId,
@@ -201,7 +296,7 @@ function item(productId, variantId, brand, productName, variantName, power, base
     brand,
     productName,
     variantName,
-    specifications: { power, baseCurve, diameter },
+    specifications: { power, cyl, axis },
     quantity,
     unitPrice,
     gstRate,
@@ -215,6 +310,108 @@ function history(status, changedBy, changedAt) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+// Power/cyl/axis ranges are stored as segments ({ start, end, step }) since a
+// single product's power range can mix signs and step sizes (see catalog
+// admin). This expands a segment into concrete selectable values in either
+// direction. Mirrors server/catalog.js exactly - keep both in sync.
+function expandRangeSegment(segment) {
+  const start = Number(segment.start);
+  const end = Number(segment.end);
+  const step = Math.abs(Number(segment.step)) || 1;
+  const values = [];
+  if (end >= start) {
+    for (let v = start; v <= end + 1e-9; v += step) values.push(roundTo2(v));
+  } else {
+    for (let v = start; v >= end - 1e-9; v -= step) values.push(roundTo2(v));
+  }
+  return values;
+}
+
+function expandRanges(segments) {
+  return (segments || []).flatMap(expandRangeSegment);
+}
+
+function roundTo2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function formatPowerValue(value) {
+  const n = Number(value);
+  if (n === 0) return "Plano";
+  return `${n > 0 ? "+" : ""}${n.toFixed(2)}`;
+}
+
+function isValueInRanges(value, segments) {
+  if (!segments || !segments.length) return true;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return false;
+  return expandRanges(segments).some((v) => Math.abs(v - n) < 1e-6);
+}
+
+function generateVariants(product) {
+  const colors = product.variantAxisValues?.color?.length ? product.variantAxisValues.color : [null];
+  const packSizes = product.variantAxisValues?.packSize?.length ? product.variantAxisValues.packSize : [null];
+  const variants = [];
+  for (const packSize of packSizes) {
+    for (const color of colors) {
+      const nameParts = [packSize, color].filter(Boolean);
+      const name = nameParts.length ? nameParts.join(" - ") : "Standard";
+      const skuParts = [product.sku, packSize, color].filter(Boolean).map((p) => String(p).replace(/\s+/g, "").toUpperCase());
+      variants.push({
+        id: "v-" + skuParts.join("-").slice(0, 40) + "-" + Math.random().toString(36).slice(2, 6),
+        name,
+        sku: skuParts.join("-"),
+        color: color || null,
+        packSize: packSize || null,
+        minOrderQty: product.pricing?.flat?.minOrderQty || product.minOrderQty,
+        active: true
+      });
+    }
+  }
+  return variants;
+}
+
+function tierMatches(match, variant, selectedPower) {
+  if (match.packSize && match.packSize !== variant.packSize) return false;
+  if (match.color && match.color !== variant.color) return false;
+  if (match.powerGte !== undefined || match.powerLte !== undefined) {
+    const power = Number(selectedPower);
+    if (!Number.isFinite(power)) return false;
+    if (match.powerGte !== undefined && !(power >= match.powerGte)) return false;
+    if (match.powerLte !== undefined && !(power <= match.powerLte)) return false;
+  }
+  return true;
+}
+
+// Client-side mirror of server/catalog.js's resolveUnitPrice, used only for
+// the live price preview while browsing/ordering - the server re-resolves
+// this authoritatively and never trusts what the client sends.
+function resolveUnitPrice(product, variant, selectedPower, customerType) {
+  const pricing = product.pricing;
+  if (!pricing) throw new Error("Product has no pricing configured.");
+  if (pricing.mode === "flat") {
+    const flat = pricing.flat;
+    if (!flat) throw new Error("Product has no flat price configured.");
+    return customerType === "dealer" ? flat.priceDealer : flat.priceRetailer;
+  }
+  const tier = (pricing.tiers || []).find((t) => tierMatches(t.match, variant, selectedPower));
+  if (!tier) throw new Error("No matching price tier for this power/pack combination.");
+  return customerType === "dealer" ? tier.priceDealer : tier.priceRetailer;
+}
+
+function resolveMinOrderQty(product, variant, selectedPower) {
+  const pricing = product.pricing;
+  if (pricing?.mode === "tiered") {
+    const tier = (pricing.tiers || []).find((t) => tierMatches(t.match, variant, selectedPower));
+    if (tier?.minOrderQty) return tier.minOrderQty;
+  }
+  return variant.minOrderQty || product.minOrderQty;
+}
+
+function categoryFor(product) {
+  return byId(state.categories, product.categoryId);
 }
 
 function sessionFromUser(user) {
@@ -458,7 +655,9 @@ function registerForm() {
 }
 
 function field(name, label, required, value = "", type = "text") {
-  return `<div class="field"><label>${escapeHtml(label)}</label><input type="${type}" name="${name}" value="${escapeAttr(value)}" ${required ? "required" : ""}></div>`;
+  // step="any" on number inputs - without it the browser defaults to step="1"
+  // and rejects any decimal value (e.g. a 0.25 power step) as "invalid".
+  return `<div class="field"><label>${escapeHtml(label)}</label><input type="${type}" name="${name}" value="${escapeAttr(value)}" ${type === "number" ? 'step="any"' : ""} ${required ? "required" : ""}></div>`;
 }
 
 function escapeHtml(value) {
@@ -649,9 +848,17 @@ function orderDetail(orderId, admin) {
     </div>`, title, "Order number, line items, totals, lifecycle and audit history.", `<button class="button secondary" onclick="go('${back}')">Back</button>`);
 }
 
+function formatSpecifications(specs) {
+  const parts = [];
+  if (specs?.power !== null && specs?.power !== undefined && specs?.power !== "") parts.push(`Power ${escapeHtml(formatPowerValue(specs.power))}`);
+  if (specs?.cyl !== null && specs?.cyl !== undefined && specs?.cyl !== "") parts.push(`Cyl ${escapeHtml(formatPowerValue(specs.cyl))}`);
+  if (specs?.axis !== null && specs?.axis !== undefined && specs?.axis !== "") parts.push(`Axis ${escapeHtml(String(specs.axis))}°`);
+  return parts.length ? parts.join("<br>") : "-";
+}
+
 function lineItemsTable(order) {
   return `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Variant</th><th>Specifications</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>
-    ${order.lineItems.map((line) => `<tr><td>${escapeHtml(line.productName)}<br><span class="badge">${escapeHtml(line.brand)}</span></td><td>${escapeHtml(line.variantName)}</td><td>Power ${escapeHtml(line.specifications.power)}<br>BC ${escapeHtml(line.specifications.baseCurve)}<br>Dia ${escapeHtml(line.specifications.diameter)}</td><td>${line.quantity}</td><td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td></tr>`).join("")}
+    ${order.lineItems.map((line) => `<tr><td>${escapeHtml(line.productName)}<br><span class="badge">${escapeHtml(line.brand)}</span></td><td>${escapeHtml(line.variantName)}</td><td>${formatSpecifications(line.specifications)}</td><td>${line.quantity}</td><td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td></tr>`).join("")}
   </tbody></table></div>`;
 }
 
@@ -690,7 +897,7 @@ function printDoc(orderId, type) {
   const customer = byId(state.customers, order.customerId);
   const isInvoice = type === "invoice";
   const rows = order.lineItems.map((line) => `
-    <tr><td>${escapeHtml(line.productName)}</td><td>${escapeHtml(line.variantName)}</td><td>${escapeHtml(line.specifications.power)}, ${escapeHtml(line.specifications.baseCurve)}, ${escapeHtml(line.specifications.diameter)}</td><td>${line.quantity}</td>${isInvoice ? `<td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td>` : ""}</tr>`).join("");
+    <tr><td>${escapeHtml(line.productName)}</td><td>${escapeHtml(line.variantName)}</td><td>${formatSpecifications(line.specifications)}</td><td>${line.quantity}</td>${isInvoice ? `<td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td>` : ""}</tr>`).join("");
   const win = window.open("", "_blank");
   win.document.write(`
     <html><head><title>${isInvoice ? "Invoice" : "Shipping Label"} ${escapeHtml(order.orderNumber)}</title><link rel="stylesheet" href="./styles.css"></head>
@@ -846,16 +1053,22 @@ function catalogAdmin() {
     </section>`, "Catalog Management", "Manage product hierarchy and pricing tiers.");
 }
 
+function pricingSummary(product) {
+  if (product.pricing?.mode === "flat") {
+    return `Dealer ${money(product.pricing.flat?.priceDealer)}<br>Retailer ${money(product.pricing.flat?.priceRetailer)}`;
+  }
+  return `<span class="badge warn">Tiered</span> ${(product.pricing?.tiers || []).length} rule(s)`;
+}
+
 function productTable() {
-  return `<div class="table-wrap"><table><thead><tr><th>Image</th><th>Brand</th><th>Product</th><th>Variants</th><th>Dealer</th><th>Retailer</th><th>MOQ</th><th>GST</th><th>Action</th></tr></thead><tbody>
+  return `<div class="table-wrap"><table><thead><tr><th>Image</th><th>Brand</th><th>Product</th><th>Category</th><th>Variants</th><th>Pricing</th><th>GST</th><th>Action</th></tr></thead><tbody>
     ${state.products.map((p, index) => `<tr>
       <td><div class="thumb-mini" style="${productImageStyle(p, index)}"></div></td>
       <td>${brandName(p.brandId)}</td>
       <td><strong>${escapeHtml(p.name)}</strong><br>${escapeHtml(p.sku)}<br><span class="badge ${p.active ? "ok" : "bad"}">${p.active ? "Active" : "Inactive"}</span></td>
-      <td>${p.variants.map((v) => `${escapeHtml(v.name)} (${escapeHtml(v.sku)})`).join("<br>")}</td>
-      <td>${money(p.priceDealer)}</td>
-      <td>${money(p.priceRetailer)}</td>
-      <td>${p.minOrderQty}</td>
+      <td>${escapeHtml(categoryFor(p)?.name || "-")}</td>
+      <td>${p.variants.map((v) => escapeHtml(v.name)).join("<br>")}</td>
+      <td>${pricingSummary(p)}</td>
       <td>${p.gstRate}%</td>
       <td class="row-actions"><button class="button secondary" onclick="editProduct('${p.id}')">Edit</button><button class="button ghost" onclick="toggleProduct('${p.id}')">${p.active ? "Deactivate" : "Activate"}</button></td>
     </tr>`).join("")}
@@ -881,17 +1094,28 @@ function productEditor(productId) {
   const isNew = productId === "new";
   const p = isNew ? blankProduct() : normalizeProduct(byId(state.products, productId));
   const gallery = p.fullImageUrls || [];
+  const category = categoryFor(p) || state.categories[0];
+  const opticalDisplay = category?.hasOpticalParameters ? "" : "display:none";
+  const cylAxisDisplay = category?.hasCylAxis ? "" : "display:none";
+  const pricingMode = p.pricing?.mode || "flat";
+  const flatDisplay = pricingMode === "flat" ? "" : "display:none";
+  const tieredDisplay = pricingMode === "tiered" ? "" : "display:none";
   return shell(`
     <form class="grid" onsubmit="saveProduct(event, '${productId}')">
       <section class="panel">
-        <div class="section-title"><div><h2>${isNew ? "Add product" : "Edit product"}</h2><p>Product details, images, pricing, MOQ, GST and specification labels.</p></div></div>
+        <div class="section-title"><div><h2>${isNew ? "Add product" : "Edit product"}</h2><p>Category, brand, fixed specifications, images, variant axes and pricing.</p></div></div>
         <div class="grid two">
+          <div class="field"><label>Category</label><select name="categoryId" onchange="toggleCategoryBlocks(this.value)">${state.categories.map((c) => `<option value="${c.id}" ${c.id === p.categoryId ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("")}</select></div>
           <div class="field"><label>Brand</label><select name="brandId">${state.brands.map((brand) => `<option value="${brand.id}" ${brand.id === p.brandId ? "selected" : ""}>${escapeHtml(brand.name)}</option>`).join("")}</select></div>
           ${field("name", "Product name", true, p.name)}
           ${field("sku", "SKU", true, p.sku)}
-          ${field("minOrderQty", "Minimum order quantity", true, p.minOrderQty, "number")}
-          ${field("priceDealer", "Dealer price", true, p.priceDealer, "number")}
-          ${field("priceRetailer", "Retailer price", true, p.priceRetailer, "number")}
+          ${field("productType", "Product type", true, p.productType)}
+          ${field("replacementSchedule", "Replacement schedule", true, p.replacementSchedule)}
+          ${field("material", "Material", true, p.material)}
+          ${field("waterContent", "Water content", true, p.waterContent)}
+          ${field("diameter", "Diameter", true, p.diameter)}
+          ${field("baseCurve", "Base curve", true, p.baseCurve)}
+          ${field("manufacturingMethod", "Manufacturing method", true, p.manufacturingMethod)}
           ${field("gstRate", "GST rate", true, p.gstRate, "number")}
           <div class="field"><label>Status</label><select name="active"><option value="true" ${p.active ? "selected" : ""}>Active</option><option value="false" ${!p.active ? "selected" : ""}>Inactive</option></select></div>
         </div>
@@ -916,19 +1140,52 @@ function productEditor(productId) {
         <div id="galleryPreview" class="gallery-strip">${galleryPreview(gallery)}</div>
       </section>
 
-      <section class="panel">
-        <div class="section-title"><div><h2>Specification labels</h2><p>Defaults match Power, Base Curve and Diameter but can be changed per product.</p></div></div>
-        <div class="grid three">
-          ${field("specField1", "Field 1", true, p.specFieldLabels.field1)}
-          ${field("specField2", "Field 2", true, p.specFieldLabels.field2)}
-          ${field("specField3", "Field 3", true, p.specFieldLabels.field3)}
+      <section class="panel" id="opticalParamsBlock" style="${opticalDisplay}">
+        <div class="section-title"><div><h2>Optical parameters</h2><p>Only applies when the selected category has sphere power. Edge/center thickness are fixed specs; the power range drives the order-time dropdown instead of free text.</p></div></div>
+        <div class="grid two">
+          ${field("edgeThickness", "Edge thickness", false, p.opticalParameters?.edgeThickness || "")}
+          ${field("centerThicknessAtMinus3", "Center thickness at -3.00", false, p.opticalParameters?.centerThicknessAtMinus3 || "")}
+        </div>
+        <div class="section-title" style="margin-top:12px"><div><h3>Sphere power range segments</h3><p>Up to 6 segments; blank rows are ignored. Example: start 0, end -5.00, step 0.25 (descending), or start 0.50, end 4.00, step 0.20 (ascending).</p></div></div>
+        <div class="grid">${powerRangeRows(p.opticalParameters?.powerRanges || [])}</div>
+        <div id="cylAxisBlock" style="${cylAxisDisplay}">
+          <div class="section-title" style="margin-top:12px"><h3>Toric: cylinder power + axis</h3></div>
+          <div class="grid three">
+            ${field("cylStart", "Cyl start", false, p.opticalParameters?.cylPowerRange?.start ?? "", "number")}
+            ${field("cylEnd", "Cyl end", false, p.opticalParameters?.cylPowerRange?.end ?? "", "number")}
+            ${field("cylStep", "Cyl step", false, p.opticalParameters?.cylPowerRange?.step ?? "", "number")}
+          </div>
+          <div class="grid three">
+            ${field("axisStart", "Axis start", false, p.opticalParameters?.axisRange?.start ?? "", "number")}
+            ${field("axisEnd", "Axis end", false, p.opticalParameters?.axisRange?.end ?? "", "number")}
+            ${field("axisStep", "Axis step", false, p.opticalParameters?.axisRange?.step ?? "", "number")}
+          </div>
         </div>
       </section>
 
       <section class="panel">
-        <div class="section-title"><div><h2>Variants</h2><p>Add up to three variants here; blank variant names are ignored.</p></div></div>
-        <div class="grid">
-          ${variantEditorRows(p)}
+        <div class="section-title"><div><h2>Variant axes</h2><p>One value per line. Leave an axis blank to not use it for this product - saving regenerates the sellable variant list from these values.</p></div></div>
+        <div class="grid two">
+          <div class="field"><label>Color options</label><textarea name="colorValues" placeholder="One color per line">${escapeHtml((p.variantAxisValues?.color || []).join("\n"))}</textarea></div>
+          <div class="field"><label>Pack size options</label><textarea name="packSizeValues" placeholder="One pack size per line">${escapeHtml((p.variantAxisValues?.packSize || []).join("\n"))}</textarea></div>
+        </div>
+        <p class="notice">Currently ${p.variants.length} generated variant(s): ${p.variants.map((v) => escapeHtml(v.name)).join(", ") || "none yet"}.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><div><h2>Pricing</h2><p>Flat pricing applies one price to every variant. Tiered pricing resolves price from pack size and/or the power the customer selects (e.g. a different price above/below a power threshold).</p></div></div>
+        <div class="field"><label>Pricing mode</label><select name="pricingMode" onchange="togglePricingBlocks(this.value)"><option value="flat" ${pricingMode === "flat" ? "selected" : ""}>Flat</option><option value="tiered" ${pricingMode === "tiered" ? "selected" : ""}>Tiered</option></select></div>
+        <div id="flatPricingBlock" style="${flatDisplay}">
+          <div class="grid two">
+            ${field("flatMrp", "MRP", false, p.pricing?.flat?.mrp ?? "", "number")}
+            ${field("flatDealer", "Dealer price", false, p.pricing?.flat?.priceDealer ?? "", "number")}
+            ${field("flatRetailer", "Retailer price", false, p.pricing?.flat?.priceRetailer ?? "", "number")}
+            ${field("minOrderQty", "Minimum order quantity", false, p.pricing?.flat?.minOrderQty ?? p.minOrderQty, "number")}
+          </div>
+        </div>
+        <div id="tieredPricingBlock" style="${tieredDisplay}">
+          <div class="section-title"><div><h3>Price tiers</h3><p>Up to 8 rows; blank rows are ignored. Pack size should match one of the values entered above. Leave "power &ge;" / "power &le;" blank to match on pack size alone.</p></div></div>
+          <div class="grid">${tierRows(p.pricing?.tiers || [])}</div>
         </div>
       </section>
 
@@ -939,22 +1196,72 @@ function productEditor(productId) {
     </form>`, "Catalog Management", isNew ? "Create a new catalog item." : "Edit the selected catalog item.");
 }
 
+function powerRangeRows(ranges) {
+  const rows = [...ranges];
+  while (rows.length < 6) rows.push({ start: "", end: "", step: "" });
+  return rows.slice(0, 6).map((seg, index) => `
+    <div class="variant-row">
+      ${field(`powerStart${index}`, `Segment ${index + 1} start`, false, seg.start ?? "", "number")}
+      ${field(`powerEnd${index}`, `Segment ${index + 1} end`, false, seg.end ?? "", "number")}
+      ${field(`powerStep${index}`, `Segment ${index + 1} step`, false, seg.step ?? "", "number")}
+    </div>`).join("");
+}
+
+function tierRows(tiers) {
+  const rows = [...tiers];
+  while (rows.length < 8) rows.push({ match: {} });
+  return rows.slice(0, 8).map((tier, index) => `
+    <div class="variant-row">
+      ${field(`tierPackSize${index}`, `Tier ${index + 1} pack size`, false, tier.match?.packSize || "")}
+      ${field(`tierColor${index}`, "Color (optional)", false, tier.match?.color || "")}
+      ${field(`tierPowerGte${index}`, "Power ≥", false, tier.match?.powerGte ?? "", "number")}
+      ${field(`tierPowerLte${index}`, "Power ≤", false, tier.match?.powerLte ?? "", "number")}
+      ${field(`tierMrp${index}`, "MRP", false, tier.mrp ?? "", "number")}
+      ${field(`tierDealer${index}`, "Dealer price", false, tier.priceDealer ?? "", "number")}
+      ${field(`tierRetailer${index}`, "Retailer price", false, tier.priceRetailer ?? "", "number")}
+      ${field(`tierMoq${index}`, "MOQ", false, tier.minOrderQty ?? "", "number")}
+    </div>`).join("");
+}
+
+function toggleCategoryBlocks(categoryId) {
+  const category = byId(state.categories, categoryId);
+  const opticalBlock = document.getElementById("opticalParamsBlock");
+  const cylAxisBlock = document.getElementById("cylAxisBlock");
+  if (opticalBlock) opticalBlock.style.display = category?.hasOpticalParameters ? "" : "none";
+  if (cylAxisBlock) cylAxisBlock.style.display = category?.hasCylAxis ? "" : "none";
+}
+
+function togglePricingBlocks(mode) {
+  const flatBlock = document.getElementById("flatPricingBlock");
+  const tieredBlock = document.getElementById("tieredPricingBlock");
+  if (flatBlock) flatBlock.style.display = mode === "flat" ? "" : "none";
+  if (tieredBlock) tieredBlock.style.display = mode === "tiered" ? "" : "none";
+}
+
 function blankProduct() {
   return {
     id: "",
+    categoryId: state.categories[0]?.id || "",
     brandId: state.brands[0]?.id || "",
     name: "",
     sku: "",
     description: "",
     thumbnailImageUrl: "",
     fullImageUrls: [],
-    minOrderQty: 6,
-    priceDealer: 0,
-    priceRetailer: 0,
+    productType: "",
+    replacementSchedule: "",
+    material: "",
+    waterContent: "",
+    diameter: "",
+    baseCurve: "",
+    manufacturingMethod: "",
+    minOrderQty: 1,
     gstRate: 12,
     active: true,
-    specFieldLabels: { field1: "Power", field2: "Base Curve", field3: "Diameter" },
-    variants: [{ id: "", name: "Standard", sku: "", minOrderQty: 6, priceDealer: 0, priceRetailer: 0, active: true }]
+    opticalParameters: { edgeThickness: "", centerThicknessAtMinus3: "", powerRanges: [], cylPowerRange: null, axisRange: null },
+    variantAxisValues: { color: [], packSize: [] },
+    pricing: { mode: "flat", flat: { mrp: 0, priceDealer: 0, priceRetailer: 0, minOrderQty: 1 }, tiers: [] },
+    variants: []
   };
 }
 
@@ -963,54 +1270,91 @@ function normalizeProduct(product) {
     ...product,
     thumbnailImageUrl: product.thumbnailImageUrl || "",
     fullImageUrls: product.fullImageUrls || [],
-    specFieldLabels: product.specFieldLabels || { field1: "Power", field2: "Base Curve", field3: "Diameter" },
-    variants: product.variants?.length ? product.variants : [{ id: "", name: "Standard", sku: "", minOrderQty: product.minOrderQty, priceDealer: product.priceDealer, priceRetailer: product.priceRetailer, active: true }]
+    opticalParameters: product.opticalParameters || { edgeThickness: "", centerThicknessAtMinus3: "", powerRanges: [], cylPowerRange: null, axisRange: null },
+    variantAxisValues: product.variantAxisValues || { color: [], packSize: [] },
+    pricing: product.pricing || { mode: "flat", flat: { mrp: 0, priceDealer: 0, priceRetailer: 0, minOrderQty: product.minOrderQty }, tiers: [] },
+    variants: product.variants || []
   };
-}
-
-function variantEditorRows(product) {
-  const rows = [...product.variants];
-  while (rows.length < 3) rows.push({ id: "", name: "", sku: "", minOrderQty: product.minOrderQty, priceDealer: product.priceDealer, priceRetailer: product.priceRetailer, active: true });
-  return rows.slice(0, 3).map((variant, index) => `
-    <div class="variant-row">
-      <input type="hidden" name="variantId${index}" value="${escapeAttr(variant.id || "")}">
-      ${field(`variantName${index}`, `Variant ${index + 1} name`, index === 0, variant.name)}
-      ${field(`variantSku${index}`, "Variant SKU", index === 0, variant.sku)}
-      ${field(`variantMoq${index}`, "Variant MOQ", false, variant.minOrderQty, "number")}
-      ${field(`variantDealer${index}`, "Dealer price", false, variant.priceDealer, "number")}
-      ${field(`variantRetailer${index}`, "Retailer price", false, variant.priceRetailer, "number")}
-      <div class="field"><label>Variant status</label><select name="variantActive${index}"><option value="true" ${variant.active !== false ? "selected" : ""}>Active</option><option value="false" ${variant.active === false ? "selected" : ""}>Inactive</option></select></div>
-    </div>`).join("");
 }
 
 function saveProduct(event, productId) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target).entries());
-  const variants = [0, 1, 2].map((index) => ({
-    id: data[`variantId${index}`] || "v" + Date.now() + index,
-    name: String(data[`variantName${index}`] || "").trim(),
-    sku: String(data[`variantSku${index}`] || "").trim(),
-    minOrderQty: Number(data[`variantMoq${index}`] || data.minOrderQty),
-    priceDealer: Number(data[`variantDealer${index}`] || data.priceDealer),
-    priceRetailer: Number(data[`variantRetailer${index}`] || data.priceRetailer),
-    active: data[`variantActive${index}`] === "true"
-  })).filter((variant) => variant.name);
+  const category = byId(state.categories, data.categoryId);
+
+  const colorValues = String(data.colorValues || "").split("\n").map((v) => v.trim()).filter(Boolean);
+  const packSizeValues = String(data.packSizeValues || "").split("\n").map((v) => v.trim()).filter(Boolean);
+
+  const powerRanges = Array.from({ length: 6 }, (_, index) => ({
+    start: data[`powerStart${index}`],
+    end: data[`powerEnd${index}`],
+    step: data[`powerStep${index}`]
+  }))
+    .filter((seg) => seg.start !== "" && seg.end !== "" && seg.step !== "")
+    .map((seg) => ({ start: Number(seg.start), end: Number(seg.end), step: Number(seg.step) }));
+
+  const cylPowerRange = data.cylStart !== "" && data.cylEnd !== "" && data.cylStep !== ""
+    ? { start: Number(data.cylStart), end: Number(data.cylEnd), step: Number(data.cylStep) }
+    : null;
+  const axisRange = data.axisStart !== "" && data.axisEnd !== "" && data.axisStep !== ""
+    ? { start: Number(data.axisStart), end: Number(data.axisEnd), step: Number(data.axisStep) }
+    : null;
+
+  const opticalParameters = category?.hasOpticalParameters ? {
+    edgeThickness: String(data.edgeThickness || "").trim(),
+    centerThicknessAtMinus3: String(data.centerThicknessAtMinus3 || "").trim(),
+    powerRanges,
+    cylPowerRange: category.hasCylAxis ? cylPowerRange : null,
+    axisRange: category.hasCylAxis ? axisRange : null
+  } : null;
+
+  const pricingMode = data.pricingMode === "tiered" ? "tiered" : "flat";
+  const flat = pricingMode === "flat" ? {
+    mrp: Number(data.flatMrp || 0),
+    priceDealer: Number(data.flatDealer || 0),
+    priceRetailer: Number(data.flatRetailer || 0),
+    minOrderQty: Number(data.minOrderQty || 1)
+  } : null;
+  const tiers = pricingMode === "tiered"
+    ? Array.from({ length: 8 }, (_, index) => ({
+        match: {
+          packSize: String(data[`tierPackSize${index}`] || "").trim() || undefined,
+          color: String(data[`tierColor${index}`] || "").trim() || undefined,
+          powerGte: data[`tierPowerGte${index}`] !== "" ? Number(data[`tierPowerGte${index}`]) : undefined,
+          powerLte: data[`tierPowerLte${index}`] !== "" ? Number(data[`tierPowerLte${index}`]) : undefined
+        },
+        mrp: Number(data[`tierMrp${index}`] || 0),
+        priceDealer: Number(data[`tierDealer${index}`] || 0),
+        priceRetailer: Number(data[`tierRetailer${index}`] || 0),
+        minOrderQty: data[`tierMoq${index}`] !== "" ? Number(data[`tierMoq${index}`]) : undefined
+      })).filter((tier) => tier.priceDealer || tier.priceRetailer || tier.mrp)
+    : [];
+
   const product = {
     id: productId === "new" ? "p" + Date.now() : productId,
+    categoryId: data.categoryId,
     brandId: data.brandId,
     name: String(data.name || "").trim(),
     sku: String(data.sku || "").trim(),
     description: String(data.description || "").trim(),
     thumbnailImageUrl: String(data.thumbnailImageUrl || "").trim(),
     fullImageUrls: String(data.fullImageUrls || "").split("\n").map((url) => url.trim()).filter(Boolean),
-    minOrderQty: Number(data.minOrderQty),
-    priceDealer: Number(data.priceDealer),
-    priceRetailer: Number(data.priceRetailer),
+    productType: String(data.productType || "").trim(),
+    replacementSchedule: String(data.replacementSchedule || "").trim(),
+    material: String(data.material || "").trim(),
+    waterContent: String(data.waterContent || "").trim(),
+    diameter: String(data.diameter || "").trim(),
+    baseCurve: String(data.baseCurve || "").trim(),
+    manufacturingMethod: String(data.manufacturingMethod || "").trim(),
+    minOrderQty: Number(data.minOrderQty || 1),
     gstRate: Number(data.gstRate),
     active: data.active === "true",
-    specFieldLabels: { field1: data.specField1, field2: data.specField2, field3: data.specField3 },
-    variants: variants.length ? variants : [{ id: "v" + Date.now(), name: "Standard", sku: data.sku + "-STD", minOrderQty: Number(data.minOrderQty), priceDealer: Number(data.priceDealer), priceRetailer: Number(data.priceRetailer), active: true }]
+    opticalParameters,
+    variantAxisValues: { color: colorValues, packSize: packSizeValues },
+    pricing: { mode: pricingMode, flat, tiers }
   };
+  product.variants = generateVariants(product);
+
   if (productId === "new") {
     state.products.push(product);
   } else {
@@ -1070,7 +1414,13 @@ function loadGalleryUpload(event) {
 }
 
 function exportProducts() {
-  const csv = ["Brand,Product Name,Variant,Price Dealer,Price Retailer,Min Order Qty,GST Rate,SKU"].concat(state.products.flatMap((p) => p.variants.map((v) => `${brandName(p.brandId)},${p.name},${v.name},${v.priceDealer || p.priceDealer},${v.priceRetailer || p.priceRetailer},${v.minOrderQty || p.minOrderQty},${p.gstRate},${v.sku}`))).join("\n");
+  const rows = state.products.flatMap((p) => {
+    if (p.pricing?.mode === "flat") {
+      return p.variants.map((v) => `${brandName(p.brandId)},${p.name},${v.name},flat,${p.pricing.flat.priceDealer},${p.pricing.flat.priceRetailer},${p.pricing.flat.minOrderQty},${p.gstRate},${v.sku}`);
+    }
+    return (p.pricing?.tiers || []).map((t) => `${brandName(p.brandId)},${p.name},${t.match.packSize || "Any pack"},tiered,${t.priceDealer},${t.priceRetailer},${t.minOrderQty || p.minOrderQty},${p.gstRate},${p.sku}`);
+  });
+  const csv = ["Brand,Product Name,Variant/Tier,Pricing Mode,Price Dealer,Price Retailer,Min Order Qty,GST Rate,SKU"].concat(rows).join("\n");
   download("products-export.csv", csv);
 }
 
@@ -1143,6 +1493,14 @@ function customerDashboard() {
   `, "Customer Dashboard", "Place orders, track statuses and download invoices.");
 }
 
+function priceLabel(product, customerType) {
+  if (product.pricing?.mode === "flat") {
+    return money(customerType === "dealer" ? product.pricing.flat.priceDealer : product.pricing.flat.priceRetailer);
+  }
+  const prices = (product.pricing?.tiers || []).map((t) => (customerType === "dealer" ? t.priceDealer : t.priceRetailer)).filter(Boolean);
+  return prices.length ? `From ${money(Math.min(...prices))}` : "-";
+}
+
 function catalogView() {
   const customer = currentCustomer();
   if (state.selectedProductId) return productDetail(state.selectedProductId);
@@ -1157,7 +1515,7 @@ function catalogView() {
             <div class="row-actions">
               <span class="badge">${brandName(p.brandId)}</span>
               <span class="badge">MOQ ${p.minOrderQty}</span>
-              <span class="badge ok">${money(customer.type === "dealer" ? p.priceDealer : p.priceRetailer)}</span>
+              <span class="badge ok">${priceLabel(p, customer.type)}</span>
             </div>
             <button class="button" style="margin-top:12px;width:100%" onclick="selectProduct('${p.id}')">Open product</button>
           </div>
@@ -1172,9 +1530,16 @@ function selectProduct(id) {
 
 function productDetail(id) {
   const p = byId(state.products, id);
+  const category = categoryFor(p);
   const customer = currentCustomer();
-  const priceFor = (variant) => customer.type === "dealer" ? (variant.priceDealer || p.priceDealer) : (variant.priceRetailer || p.priceRetailer);
   const gallery = [p.thumbnailImageUrl, ...(p.fullImageUrls || [])].filter(Boolean);
+  const powerOptions = category?.hasOpticalParameters ? expandRanges(p.opticalParameters?.powerRanges) : [];
+  const cylOptions = category?.hasCylAxis && p.opticalParameters?.cylPowerRange ? expandRanges([p.opticalParameters.cylPowerRange]) : [];
+  const axisOptions = category?.hasCylAxis && p.opticalParameters?.axisRange ? expandRanges([p.opticalParameters.axisRange]) : [];
+  const initialVariant = p.variants[0];
+  let initialPrice = "Select options to see price";
+  try { initialPrice = money(resolveUnitPrice(p, initialVariant, powerOptions[0], customer.type)); } catch { /* leave placeholder */ }
+
   return shell(`
     <div class="split">
       <section class="panel">
@@ -1182,21 +1547,49 @@ function productDetail(id) {
         ${gallery.length ? `<div class="gallery-strip" style="margin-bottom:14px">${galleryPreview(gallery)}</div>` : ""}
         <div class="section-title"><div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.description)}</p></div><span class="badge">${brandName(p.brandId)}</span></div>
         <div class="grid two">
-          ${p.variants.map((v) => `<div class="line-item"><strong>${escapeHtml(v.name)}</strong><span>${escapeHtml(v.sku)}</span><span class="badge ok">${money(priceFor(v))}</span><span class="badge">MOQ ${v.minOrderQty || p.minOrderQty}</span></div>`).join("")}
+          <div><h3>Specifications</h3><p>
+            <strong>Type:</strong> ${escapeHtml(p.productType)}<br>
+            <strong>Replacement:</strong> ${escapeHtml(p.replacementSchedule)}<br>
+            <strong>Material:</strong> ${escapeHtml(p.material)}<br>
+            <strong>Water content:</strong> ${escapeHtml(p.waterContent)}<br>
+            <strong>Diameter:</strong> ${escapeHtml(p.diameter)}<br>
+            <strong>Base curve:</strong> ${escapeHtml(p.baseCurve)}<br>
+            <strong>Manufacturing:</strong> ${escapeHtml(p.manufacturingMethod)}${category?.hasOpticalParameters ? `<br>
+            <strong>Edge thickness:</strong> ${escapeHtml(p.opticalParameters?.edgeThickness || "-")}<br>
+            <strong>Center thickness @ -3.00:</strong> ${escapeHtml(p.opticalParameters?.centerThicknessAtMinus3 || "-")}` : ""}
+          </p></div>
+          <div><h3>Available options</h3>${p.variants.map((v) => `<div class="line-item"><strong>${escapeHtml(v.name)}</strong><span>${escapeHtml(v.sku)}</span></div>`).join("")}</div>
         </div>
       </section>
       <aside class="panel">
         <form class="grid" onsubmit="addToCart(event, '${p.id}')">
-          <div class="section-title"><h3>Add specification line</h3></div>
-          <div class="field"><label>Variant</label><select name="variantId">${p.variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)} - ${money(priceFor(v))}</option>`).join("")}</select></div>
-          ${field("power", p.specFieldLabels.field1, true)}
-          ${field("baseCurve", p.specFieldLabels.field2, true, "8.6")}
-          ${field("diameter", p.specFieldLabels.field3, true, "14.2")}
+          <div class="section-title"><h3>Place an order line</h3></div>
+          <div class="field"><label>Variant</label><select name="variantId" onchange="updatePricePreview('${p.id}')">${p.variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}</select></div>
+          ${category?.hasOpticalParameters ? `<div class="field"><label>Power</label><select name="power" onchange="updatePricePreview('${p.id}')">${powerOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
+          ${category?.hasCylAxis && cylOptions.length ? `<div class="field"><label>Cyl power</label><select name="cyl" onchange="updatePricePreview('${p.id}')">${cylOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
+          ${category?.hasCylAxis && axisOptions.length ? `<div class="field"><label>Axis</label><select name="axis" onchange="updatePricePreview('${p.id}')">${axisOptions.map((v) => `<option value="${v}">${escapeHtml(String(v))}°</option>`).join("")}</select></div>` : ""}
           ${field("quantity", "Quantity", true, p.minOrderQty, "number")}
+          <div class="notice">Unit price: <strong id="pricePreview">${initialPrice}</strong></div>
           <button class="button">Add to cart</button>
         </form>
       </aside>
-    </div>`, "Product Detail", "Free-text specifications with quantity per combination.", `<button class="button secondary" onclick="setState({selectedProductId:null})">Back</button>`);
+    </div>`, "Product Detail", "Specifications are fixed per product; power/cyl/axis are selected per order line.", `<button class="button secondary" onclick="setState({selectedProductId:null})">Back</button>`);
+}
+
+function updatePricePreview(productId) {
+  const product = byId(state.products, productId);
+  const customer = currentCustomer();
+  const variantSelect = document.querySelector('select[name="variantId"]');
+  const powerSelect = document.querySelector('select[name="power"]');
+  const variant = product.variants.find((v) => v.id === variantSelect?.value) || product.variants[0];
+  const power = powerSelect ? powerSelect.value : undefined;
+  const preview = document.getElementById("pricePreview");
+  if (!preview) return;
+  try {
+    preview.textContent = money(resolveUnitPrice(product, variant, power, customer.type));
+  } catch {
+    preview.textContent = "Select options to see price";
+  }
 }
 
 function addToCart(event, productId) {
@@ -1204,15 +1597,25 @@ function addToCart(event, productId) {
   const customer = currentCustomer();
   const data = Object.fromEntries(new FormData(event.target).entries());
   const product = byId(state.products, productId);
+  const category = categoryFor(product);
   const variant = product.variants.find((v) => v.id === data.variantId);
-  const min = Number(variant.minOrderQty || product.minOrderQty);
+  const power = category?.hasOpticalParameters && data.power !== undefined && data.power !== "" ? Number(data.power) : null;
+  const cyl = category?.hasCylAxis && data.cyl !== undefined && data.cyl !== "" ? Number(data.cyl) : null;
+  const axis = category?.hasCylAxis && data.axis !== undefined && data.axis !== "" ? Number(data.axis) : null;
   const quantity = Number(data.quantity);
+  const min = resolveMinOrderQty(product, variant, power);
   if (quantity < min) {
-    alert(`Minimum order quantity for this variant is ${min}.`);
+    alert(`Minimum order quantity for this selection is ${min}.`);
     return;
   }
-  const unitPrice = customer.type === "dealer" ? (variant.priceDealer || product.priceDealer) : (variant.priceRetailer || product.priceRetailer);
-  state.cart.push(item(product.id, variant.id, brandName(product.brandId), product.name, variant.name, data.power, data.baseCurve, data.diameter, quantity, unitPrice, product.gstRate));
+  let unitPrice;
+  try {
+    unitPrice = resolveUnitPrice(product, variant, power, customer.type);
+  } catch (error) {
+    alert(error.message);
+    return;
+  }
+  state.cart.push(item(product.id, variant.id, brandName(product.brandId), product.name, variant.name, power, cyl, axis, quantity, unitPrice, product.gstRate));
   saveState();
   setState({ selectedProductId: null, view: "cart" });
 }
@@ -1245,8 +1648,8 @@ async function submitOrder() {
     variantId: line.variantId,
     quantity: line.quantity,
     power: line.specifications.power,
-    baseCurve: line.specifications.baseCurve,
-    diameter: line.specifications.diameter
+    cyl: line.specifications.cyl,
+    axis: line.specifications.axis
   }));
   try {
     // Price/GST/MOQ are resolved server-side from the current catalog, not

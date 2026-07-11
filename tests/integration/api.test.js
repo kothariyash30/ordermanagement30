@@ -319,9 +319,42 @@ describe("POST /api/customer-actions/orders", () => {
     const response = await fetch(`${BASE_URL}/api/customer-actions/orders`, {
       method: "POST",
       headers: authHeaders(token),
-      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 1, power: "-2.00", baseCurve: "8.6", diameter: "14.2" }] })
+      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 1, power: -2.00 }] })
     });
     expect(response.status).toBe(400);
+  });
+
+  test("rejects a power value that is not on the product's configured step grid", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/customer-actions/orders`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 6, power: -2.10 }] })
+    });
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toContain("not a valid option");
+  });
+
+  test("resolves a different price above/below the power threshold for a tiered-pricing product", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const below = await fetch(`${BASE_URL}/api/customer-actions/orders`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ cart: [{ productId: "p4", variantId: "v6", quantity: 2, power: -8.00 }] })
+    });
+    const belowBody = await below.json();
+    expect(below.status).toBe(201);
+    expect(belowBody.order.lineItems[0].unitPrice).toBe(650);
+
+    const above = await fetch(`${BASE_URL}/api/customer-actions/orders`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ cart: [{ productId: "p4", variantId: "v6", quantity: 2, power: -11.00 }] })
+    });
+    const aboveBody = await above.json();
+    expect(above.status).toBe(201);
+    expect(aboveBody.order.lineItems[0].unitPrice).toBe(800);
   });
 
   test("ignores a client-supplied price and resolves it from the server-side catalog", async () => {
@@ -330,7 +363,7 @@ describe("POST /api/customer-actions/orders", () => {
       method: "POST",
       headers: authHeaders(token),
       body: JSON.stringify({
-        cart: [{ productId: "p1", variantId: "v1", quantity: 6, unitPrice: 1, power: "-2.00", baseCurve: "8.6", diameter: "14.2" }]
+        cart: [{ productId: "p1", variantId: "v1", quantity: 6, unitPrice: 1, power: -2.00 }]
       })
     });
     expect(response.status).toBe(201);
@@ -345,7 +378,7 @@ describe("POST /api/customer-actions/orders", () => {
     const orderResponse = await fetch(`${BASE_URL}/api/customer-actions/orders`, {
       method: "POST",
       headers: authHeaders(token),
-      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 6, power: "-2.00", baseCurve: "8.6", diameter: "14.2" }] })
+      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 6, power: -2.00 }] })
     });
     const { order } = await orderResponse.json();
 
