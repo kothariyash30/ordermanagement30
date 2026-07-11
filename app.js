@@ -282,7 +282,12 @@ const seed = {
     { event: "Payment Received", channelsEnabled: { email: true, sms: false, whatsapp: true }, recipient: "customer" },
     { event: "Order Dispatched", channelsEnabled: { email: true, sms: true, whatsapp: true }, recipient: "customer" },
     { event: "NewDealerRegistration", channelsEnabled: { email: true, sms: false, whatsapp: false }, recipient: "admin" }
-  ]
+  ],
+  integrationConfigs: {
+    gmail: { enabled: false, emailAddress: "", appPassword: "", senderName: "" },
+    whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
+    sms: { enabled: false, provider: "", apiKey: "", senderId: "" }
+  }
 };
 
 seed.orders = seed.orders.map(withTotals);
@@ -532,7 +537,8 @@ function appNav() {
         ["catalog-admin", "Catalog"],
         ["reports", "Reports"],
         ["notifications", "Notifications"],
-        ["admin-users", "Admin Users"]
+        ["admin-users", "Admin Users"],
+        ["configurations", "Configurations"]
       ]
     : [
         ["customer-dashboard", "Dashboard"],
@@ -585,6 +591,7 @@ function render() {
     reports: reportsView,
     notifications: notificationsView,
     "admin-users": adminUsersView,
+    configurations: configurationsView,
     "customer-dashboard": customerDashboard,
     catalog: catalogView,
     cart: cartView,
@@ -1545,6 +1552,77 @@ async function resetAdminPassword(event, id) {
 function removeAdminUser(id) {
   state.adminUsers = state.adminUsers.filter((u) => u.id !== id);
   saveState();
+  render();
+}
+
+function configurationsView() {
+  const config = state.integrationConfigs || {};
+  const gmail = config.gmail || {};
+  const whatsapp = config.whatsapp || {};
+  const sms = config.sms || {};
+  return shell(`
+    <form class="grid" onsubmit="saveIntegrationConfigs(event)">
+      <section class="panel">
+        <div class="section-title"><div><h2>Gmail (email)</h2><p>Used to send order and approval notification emails from a Gmail account.</p></div></div>
+        <div class="grid two">
+          <div class="field"><label>Enabled</label><select name="gmailEnabled"><option value="true" ${gmail.enabled ? "selected" : ""}>Yes</option><option value="false" ${!gmail.enabled ? "selected" : ""}>No</option></select></div>
+          ${field("gmailEmailAddress", "Gmail address", false, gmail.emailAddress || "", "email")}
+          ${field("gmailAppPassword", "App password", false, gmail.appPassword || "", "password")}
+          ${field("gmailSenderName", "Sender display name", false, gmail.senderName || "")}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><div><h2>WhatsApp Business</h2><p>Used to send WhatsApp notifications via the WhatsApp Business/Cloud API.</p></div></div>
+        <div class="grid two">
+          <div class="field"><label>Enabled</label><select name="whatsappEnabled"><option value="true" ${whatsapp.enabled ? "selected" : ""}>Yes</option><option value="false" ${!whatsapp.enabled ? "selected" : ""}>No</option></select></div>
+          ${field("whatsappBusinessPhoneNumberId", "Business phone number ID", false, whatsapp.businessPhoneNumberId || "")}
+          ${field("whatsappAccessToken", "Access token", false, whatsapp.accessToken || "", "password")}
+          ${field("whatsappFromPhoneNumber", "Sending phone number", false, whatsapp.fromPhoneNumber || "")}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-title"><div><h2>SMS gateway</h2><p>Used to send SMS notifications through a third-party SMS gateway.</p></div></div>
+        <div class="grid two">
+          <div class="field"><label>Enabled</label><select name="smsEnabled"><option value="true" ${sms.enabled ? "selected" : ""}>Yes</option><option value="false" ${!sms.enabled ? "selected" : ""}>No</option></select></div>
+          ${field("smsProvider", "Provider", false, sms.provider || "")}
+          ${field("smsApiKey", "API key", false, sms.apiKey || "", "password")}
+          ${field("smsSenderId", "Sender ID", false, sms.senderId || "")}
+        </div>
+      </section>
+
+      <div class="row-actions">
+        <button class="button">Save configuration</button>
+      </div>
+    </form>`, "Configurations", "Third-party integrations for sending email, WhatsApp and SMS notifications. Admin-only - never sent to dealer/retailer sessions.");
+}
+
+function saveIntegrationConfigs(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  state.integrationConfigs = {
+    gmail: {
+      enabled: data.gmailEnabled === "true",
+      emailAddress: String(data.gmailEmailAddress || "").trim(),
+      appPassword: String(data.gmailAppPassword || "").trim(),
+      senderName: String(data.gmailSenderName || "").trim()
+    },
+    whatsapp: {
+      enabled: data.whatsappEnabled === "true",
+      businessPhoneNumberId: String(data.whatsappBusinessPhoneNumberId || "").trim(),
+      accessToken: String(data.whatsappAccessToken || "").trim(),
+      fromPhoneNumber: String(data.whatsappFromPhoneNumber || "").trim()
+    },
+    sms: {
+      enabled: data.smsEnabled === "true",
+      provider: String(data.smsProvider || "").trim(),
+      apiKey: String(data.smsApiKey || "").trim(),
+      senderId: String(data.smsSenderId || "").trim()
+    }
+  };
+  saveState();
+  alert("Configuration saved.");
   render();
 }
 

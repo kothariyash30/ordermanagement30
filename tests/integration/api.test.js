@@ -228,6 +228,48 @@ describe("GET /api/state", () => {
     const customerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(customerToken) })).json();
     expect(customerView.customers.every((c) => !("passwordHash" in c))).toBe(true);
   });
+
+  test("includes integrationConfigs for an admin but never for a customer", async () => {
+    const adminToken = await loginAs("admin@lensflow.local");
+    const adminView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(adminToken) })).json();
+    expect(adminView.integrationConfigs).toBeDefined();
+    expect(adminView.integrationConfigs.gmail).toBeDefined();
+
+    const customerToken = await loginAs("dealer@lensflow.local");
+    const customerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(customerToken) })).json();
+    expect(customerView.integrationConfigs).toBeUndefined();
+  });
+});
+
+describe("integration configurations (Gmail/WhatsApp/SMS credentials)", () => {
+  test("an admin can save integration credentials via PUT /api/state and read them back", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
+    const updated = {
+      ...current,
+      integrationConfigs: {
+        gmail: { enabled: true, emailAddress: "orders@lensflow.local", appPassword: "app-pass-1234", senderName: "LensFlow Orders" },
+        whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
+        sms: { enabled: true, provider: "Twilio", apiKey: "sms-key-5678", senderId: "LNSFLW" }
+      }
+    };
+    const putResponse = await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(token), body: JSON.stringify({ state: updated }) });
+    expect(putResponse.status).toBe(200);
+
+    const after = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
+    expect(after.integrationConfigs.gmail).toEqual({ enabled: true, emailAddress: "orders@lensflow.local", appPassword: "app-pass-1234", senderName: "LensFlow Orders" });
+    expect(after.integrationConfigs.sms.senderId).toBe("LNSFLW");
+  });
+
+  test("a customer token cannot write integration configs (PUT /api/state is admin-only)", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/state`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify({ state: { integrationConfigs: { gmail: { enabled: true, emailAddress: "x", appPassword: "y", senderName: "z" } } } })
+    });
+    expect(response.status).toBe(403);
+  });
 });
 
 describe("PUT /api/state (admin-only)", () => {

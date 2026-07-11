@@ -104,10 +104,14 @@ function reconcilePasswordHashes(existingList, incomingList) {
   });
 }
 
-function sanitizeStateForClient(state) {
+function sanitizeStateForClient(state, role) {
   const next = JSON.parse(JSON.stringify(state));
   next.customers = (next.customers || []).map(({ passwordHash: _hash, ...rest }) => rest);
   next.adminUsers = (next.adminUsers || []).map(({ passwordHash: _hash, ...rest }) => rest);
+  // integrationConfigs holds third-party credentials (Gmail app password,
+  // WhatsApp access token, SMS gateway API key) - admin-only, never sent to
+  // a customer/dealer/retailer session even though they share this endpoint.
+  if (role !== "admin") delete next.integrationConfigs;
   return next;
 }
 
@@ -459,10 +463,10 @@ app.patch("/api/admin-actions/admin-users/:id/password", stateWriteLimiter, requ
   }
 });
 
-app.get("/api/state", authenticate, async (_request, response, next) => {
+app.get("/api/state", authenticate, async (request, response, next) => {
   try {
     const doc = await getStateDocument();
-    response.json(sanitizeStateForClient(doc.state));
+    response.json(sanitizeStateForClient(doc.state, request.user.role));
   } catch (error) {
     next(error);
   }

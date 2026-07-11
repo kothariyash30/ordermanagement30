@@ -319,7 +319,15 @@ const seedState = {
     { event: "Payment Received", channelsEnabled: { email: true, sms: false, whatsapp: true }, recipient: "customer" },
     { event: "Order Dispatched", channelsEnabled: { email: true, sms: true, whatsapp: true }, recipient: "customer" },
     { event: "NewDealerRegistration", channelsEnabled: { email: true, sms: false, whatsapp: false }, recipient: "admin" }
-  ]
+  ],
+  // Admin-only third-party integration credentials (see Configurations view).
+  // Stripped from GET /api/state for any non-admin session - see
+  // sanitizeStateForClient in server/index.js.
+  integrationConfigs: {
+    gmail: { enabled: false, emailAddress: "", appPassword: "", senderName: "" },
+    whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
+    sms: { enabled: false, provider: "", apiKey: "", senderId: "" }
+  }
 };
 
 export { STATUSES, CATEGORIES, seedState };
