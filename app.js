@@ -44,6 +44,8 @@ const seed = {
   activeCustomerId: null,
   selectedProductId: null,
   editingProductId: null,
+  addingAdminUser: false,
+  resettingPasswordForAdminId: null,
   cart: [],
   adminUsers: [
     { id: "a1", name: "Super Admin", email: "admin@lensflow.local", role: "Super Admin" },
@@ -475,6 +477,8 @@ function sanitizeStateForPersistence(value) {
   next.activeCustomerId = null;
   next.selectedProductId = null;
   next.editingProductId = null;
+  next.addingAdminUser = false;
+  next.resettingPasswordForAdminId = null;
   next.cart = [];
   return next;
 }
@@ -1469,17 +1473,73 @@ function setRecipient(index, value) {
 }
 
 function adminUsersView() {
+  if (state.addingAdminUser) return addAdminUserForm();
+  if (state.resettingPasswordForAdminId) return resetAdminPasswordForm(state.resettingPasswordForAdminId);
   return shell(`
     <section class="panel">
-      <div class="section-title"><div><h2>Admin users</h2><p>Super Admin can create and remove staff accounts.</p></div><button class="button" onclick="addAdminUser()">Add admin user</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody>${state.adminUsers.map((u) => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td><td>${u.role === "Super Admin" ? "" : `<button class="button bad" onclick="removeAdminUser('${u.id}')">Remove</button>`}</td></tr>`).join("")}</tbody></table></div>
+      <div class="section-title"><div><h2>Admin users</h2><p>Super Admin can create staff accounts, reset their password, and remove them.</p></div><button class="button" onclick="setState({addingAdminUser:true})">Add admin user</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody>${state.adminUsers.map((u) => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td><td class="row-actions">${u.role === "Super Admin" ? "" : `<button class="button secondary" onclick="setState({resettingPasswordForAdminId:'${u.id}'})">Reset password</button><button class="button bad" onclick="removeAdminUser('${u.id}')">Remove</button>`}</td></tr>`).join("")}</tbody></table></div>
     </section>`, "Admin User Management", "Single staff permission tier plus Super Admin ownership.");
 }
 
-function addAdminUser() {
-  state.adminUsers.push({ id: "a" + Date.now(), name: "New Staff User", email: `staff${Date.now()}@lensflow.local`, role: "Admin User" });
-  saveState();
-  render();
+function addAdminUserForm() {
+  return shell(`
+    <form class="panel grid" onsubmit="createAdminUser(event)">
+      <div class="section-title"><div><h2>Add admin user</h2><p>Creates a new Admin User (Operations Staff) account with a real, immediately usable password.</p></div></div>
+      <div class="grid two">
+        ${field("name", "Name", true)}
+        ${field("email", "Email", true, "", "email")}
+        ${field("password", "Password", true, "", "password")}
+      </div>
+      <div class="row-actions">
+        <button class="button">Create admin user</button>
+        <button type="button" class="button secondary" onclick="setState({addingAdminUser:false})">Cancel</button>
+      </div>
+    </form>`, "Admin User Management", "Create a new staff account.", `<button class="button secondary" onclick="setState({addingAdminUser:false})">Back</button>`);
+}
+
+function resetAdminPasswordForm(id) {
+  const target = byId(state.adminUsers, id);
+  if (!target) return shell(`<div class="empty">Admin user not found.</div>`, "Admin User Management", "", `<button class="button secondary" onclick="setState({resettingPasswordForAdminId:null})">Back</button>`);
+  return shell(`
+    <form class="panel grid" onsubmit="resetAdminPassword(event, '${target.id}')">
+      <div class="section-title"><div><h2>Reset password</h2><p>Set a new password for ${escapeHtml(target.name)} (${escapeHtml(target.email)}).</p></div></div>
+      ${field("password", "New password", true, "", "password")}
+      <div class="row-actions">
+        <button class="button">Reset password</button>
+        <button type="button" class="button secondary" onclick="setState({resettingPasswordForAdminId:null})">Cancel</button>
+      </div>
+    </form>`, "Admin User Management", "Set a new password for this staff account.", `<button class="button secondary" onclick="setState({resettingPasswordForAdminId:null})">Back</button>`);
+}
+
+async function createAdminUser(event) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  try {
+    const result = await apiRequest("/api/admin-actions/admin-users", {
+      method: "POST",
+      body: JSON.stringify({ name: data.name, email: data.email, password: data.password })
+    });
+    state.adminUsers.push(result.adminUser);
+    setState({ addingAdminUser: false });
+  } catch (error) {
+    alert(error.message || "Unable to create admin user.");
+  }
+}
+
+async function resetAdminPassword(event, id) {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  try {
+    await apiRequest(`/api/admin-actions/admin-users/${id}/password`, {
+      method: "PATCH",
+      body: JSON.stringify({ password: data.password })
+    });
+    alert("Password updated.");
+    setState({ resettingPasswordForAdminId: null });
+  } catch (error) {
+    alert(error.message || "Unable to reset password.");
+  }
 }
 
 function removeAdminUser(id) {

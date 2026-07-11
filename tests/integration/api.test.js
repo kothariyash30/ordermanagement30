@@ -414,6 +414,144 @@ describe("PATCH /api/customer-actions/notification-preferences", () => {
   });
 });
 
+describe("POST /api/admin-actions/admin-users", () => {
+  test("rejects requests with no token", async () => {
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Test", email: "newstaff@lensflow.local", password: "TestPassword1" })
+    });
+    expect(response.status).toBe(401);
+  });
+
+  test("rejects a customer token", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ name: "Test", email: "newstaff@lensflow.local", password: "TestPassword1" })
+    });
+    expect(response.status).toBe(403);
+  });
+
+  test("rejects a password shorter than 8 characters", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ name: "Test", email: "newstaff@lensflow.local", password: "short" })
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("rejects an email that already exists", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ name: "Test", email: "dealer@lensflow.local", password: "TestPassword1" })
+    });
+    expect(response.status).toBe(409);
+  });
+
+  test("creates a real, immediately-usable Admin User account", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const createResponse = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ name: "New Staffer", email: "newstaff@lensflow.local", password: "NewStaffPass1" })
+    });
+    expect(createResponse.status).toBe(201);
+    const created = (await createResponse.json()).adminUser;
+    expect(created).toMatchObject({ name: "New Staffer", email: "newstaff@lensflow.local", role: "Admin User" });
+    expect(created.passwordHash).toBeUndefined();
+
+    const loginResponse = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "newstaff@lensflow.local", password: "NewStaffPass1" })
+    });
+    expect(loginResponse.status).toBe(200);
+    const loginBody = await loginResponse.json();
+    expect(loginBody.user.role).toBe("admin");
+  });
+});
+
+describe("PATCH /api/admin-actions/admin-users/:id/password", () => {
+  test("rejects requests with no token", async () => {
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/a2/password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "BrandNewPass1" })
+    });
+    expect(response.status).toBe(401);
+  });
+
+  test("rejects a customer token", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/a2/password`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ password: "BrandNewPass1" })
+    });
+    expect(response.status).toBe(403);
+  });
+
+  test("rejects a password shorter than 8 characters", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/a2/password`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ password: "short" })
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("404s for an unknown admin user id", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/does-not-exist/password`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ password: "BrandNewPass1" })
+    });
+    expect(response.status).toBe(404);
+  });
+
+  test("refuses to reset the Super Admin's own password", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/a1/password`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ password: "BrandNewPass1" })
+    });
+    expect(response.status).toBe(403);
+  });
+
+  test("resets Operations Staff's (Admin User role) password, and the new password works for login", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/admin-users/a2/password`, {
+      method: "PATCH",
+      headers: authHeaders(token),
+      body: JSON.stringify({ password: "OpsBrandNewPass1" })
+    });
+    expect(response.status).toBe(200);
+
+    const oldLogin = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "ops@lensflow.local", password: "ops123" })
+    });
+    expect(oldLogin.status).toBe(401);
+
+    const newLogin = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "ops@lensflow.local", password: "OpsBrandNewPass1" })
+    });
+    expect(newLogin.status).toBe(200);
+  });
+});
+
 describe("POST /api/reset-seed (admin-only)", () => {
   test("rejects requests with no token", async () => {
     const response = await fetch(`${BASE_URL}/api/reset-seed`, { method: "POST" });

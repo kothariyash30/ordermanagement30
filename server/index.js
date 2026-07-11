@@ -81,6 +81,8 @@ function cleanState(input) {
   state.activeCustomerId = null;
   state.selectedProductId = null;
   state.editingProductId = null;
+  state.addingAdminUser = false;
+  state.resettingPasswordForAdminId = null;
   state.cart = [];
   return state;
 }
@@ -385,6 +387,73 @@ app.patch("/api/customer-actions/notification-preferences", stateWriteLimiter, a
       return;
     }
     response.json({ ok: true, notificationPreferences: sanitized });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/admin-actions/admin-users", stateWriteLimiter, requireAdmin, async (request, response, next) => {
+  try {
+    const body = request.body || {};
+    if (!String(body.name || "").trim() || !String(body.email || "").trim() || !body.password) {
+      response.status(400).json({ error: "Name, email and password are required." });
+      return;
+    }
+    if (String(body.password).length < 8) {
+      response.status(400).json({ error: "Password must be at least 8 characters." });
+      return;
+    }
+    const email = String(body.email).trim().toLowerCase();
+    const doc = await getStateDocument();
+    const emailTaken = doc.state.adminUsers.some((u) => u.email.toLowerCase() === email) ||
+      doc.state.customers.some((c) => c.email.toLowerCase() === email);
+    if (emailTaken) {
+      response.status(409).json({ error: "An account with that email already exists." });
+      return;
+    }
+
+    const newAdmin = {
+      id: "a" + nanoid(),
+      name: String(body.name).trim(),
+      email,
+      role: "Admin User",
+      passwordHash: await hashPassword(String(body.password))
+    };
+    await AppState.findOneAndUpdate(
+      { key: "primary" },
+      { $push: { "state.adminUsers": newAdmin }, $set: { revision: nanoid() } },
+      { new: true, lean: true }
+    );
+    response.status(201).json({ ok: true, adminUser: { id: newAdmin.id, name: newAdmin.name, email: newAdmin.email, role: newAdmin.role } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch("/api/admin-actions/admin-users/:id/password", stateWriteLimiter, requireAdmin, async (request, response, next) => {
+  try {
+    const password = request.body?.password;
+    if (!password || String(password).length < 8) {
+      response.status(400).json({ error: "Password must be at least 8 characters." });
+      return;
+    }
+    const doc = await getStateDocument();
+    const target = doc.state.adminUsers.find((u) => u.id === request.params.id);
+    if (!target) {
+      response.status(404).json({ error: "Admin user not found." });
+      return;
+    }
+    if (target.role === "Super Admin") {
+      response.status(403).json({ error: "The Super Admin password cannot be reset from here." });
+      return;
+    }
+    const passwordHash = await hashPassword(String(password));
+    await AppState.findOneAndUpdate(
+      { key: "primary", "state.adminUsers.id": request.params.id },
+      { $set: { "state.adminUsers.$.passwordHash": passwordHash, revision: nanoid() } },
+      { new: true, lean: true }
+    );
+    response.json({ ok: true });
   } catch (error) {
     next(error);
   }

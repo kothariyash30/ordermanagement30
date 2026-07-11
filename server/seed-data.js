@@ -70,6 +70,8 @@ const seedState = {
   activeCustomerId: null,
   selectedProductId: null,
   editingProductId: null,
+  addingAdminUser: false,
+  resettingPasswordForAdminId: null,
   cart: [],
   adminUsers: [
     { id: "a1", name: "Super Admin", email: "admin@lensflow.local", role: "Super Admin", passwordHash: demoPasswordHash("admin@lensflow.local") },
