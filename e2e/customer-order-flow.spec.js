@@ -10,14 +10,14 @@ test("dealer can browse the catalog and open a product", async ({ page }) => {
   await page.getByRole("button", { name: "Product Catalog" }).click();
   await expect(page.getByRole("heading", { name: "Product Catalog" })).toBeVisible();
   await page.getByRole("button", { name: "Open product" }).first().click();
-  await expect(page.getByRole("heading", { name: "AquaLux Daily Clear" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aura NetraLens Daily Clear" })).toBeVisible();
 });
 
 test("adding a quantity below the variant MOQ is rejected", async ({ page }) => {
   await page.getByRole("button", { name: "Product Catalog" }).click();
   await page.getByRole("button", { name: "Open product" }).first().click();
 
-  // AquaLux Daily Clear defaults to the "30 Lens Pack" variant (MOQ 6).
+  // Aura NetraLens Daily Clear defaults to the "30 Lens Pack" variant (MOQ 6).
   await page.locator('select[name="power"]').selectOption({ label: "-2.00" });
   await page.locator('input[name="quantity"]').fill("1");
 
@@ -28,7 +28,7 @@ test("adding a quantity below the variant MOQ is rejected", async ({ page }) => 
   });
   await page.getByRole("button", { name: "Add to cart" }).click();
   expect(alertMessage).toContain("Minimum order quantity");
-  await expect(page.getByRole("heading", { name: "AquaLux Daily Clear" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Aura NetraLens Daily Clear" })).toBeVisible();
 });
 
 test("dealer can add a valid line to cart and submit an order", async ({ page }) => {
@@ -41,7 +41,7 @@ test("dealer can add a valid line to cart and submit an order", async ({ page })
   await page.getByRole("button", { name: "Add to cart" }).click();
 
   await expect(page.getByRole("heading", { name: "Cart" })).toBeVisible();
-  await expect(page.getByText("AquaLux Daily Clear")).toBeVisible();
+  await expect(page.getByText("Aura NetraLens Daily Clear")).toBeVisible();
 
   await page.getByRole("button", { name: "Submit order" }).click();
   await expect(page.locator(".badge.warn, .badge.ok").filter({ hasText: "Order Received" })).toBeVisible();
@@ -62,8 +62,8 @@ test("cart badge in the sidebar reflects the number of cart lines", async ({ pag
 
 test("tiered-pricing product resolves a different price above/below the power threshold", async ({ page }) => {
   await page.getByRole("button", { name: "Product Catalog" }).click();
-  await page.locator(".catalog-card", { hasText: "OptiWear Precision Monthly" }).getByRole("button", { name: "Open product" }).click();
-  await expect(page.getByRole("heading", { name: "OptiWear Precision Monthly" })).toBeVisible();
+  await page.locator(".catalog-card", { hasText: "Aura NetraLens Precision Monthly" }).getByRole("button", { name: "Open product" }).click();
+  await expect(page.getByRole("heading", { name: "Aura NetraLens Precision Monthly" })).toBeVisible();
 
   await page.locator('select[name="variantId"]').selectOption({ label: "1 Pair Pack" });
   await page.locator('select[name="power"]').selectOption({ label: "-8.00" });

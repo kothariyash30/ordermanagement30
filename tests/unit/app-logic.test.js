@@ -29,7 +29,7 @@ describe("HTML escaping", () => {
 
   test("both helpers pass through plain text unchanged", async () => {
     const window = await loadApp();
-    expect(window.escapeHtml("AquaLux Daily Clear")).toBe("AquaLux Daily Clear");
+    expect(window.escapeHtml("Aura NetraLens Daily Clear")).toBe("Aura NetraLens Daily Clear");
   });
 });
 

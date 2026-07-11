@@ -91,8 +91,7 @@ const seed = {
     }
   ],
   brands: [
-    { id: "b1", name: "AquaLux", active: true },
-    { id: "b2", name: "OptiWear", active: true }
+    { id: "b1", name: "Aura NetraLens", active: true }
   ],
   categories: [
     { id: "cat-optical-sphere", name: "Optical Lens - Sphere Power", hasOpticalParameters: true, hasCylAxis: false },
@@ -104,8 +103,8 @@ const seed = {
       id: "p1",
       categoryId: "cat-optical-sphere",
       brandId: "b1",
-      name: "AquaLux Daily Clear",
-      sku: "AL-DAILY-CLEAR",
+      name: "Aura NetraLens Daily Clear",
+      sku: "ANL-DAILY-CLEAR",
       description: "Daily disposable hydrogel lenses for clear everyday wear.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
@@ -132,16 +131,16 @@ const seed = {
       variantAxisValues: { color: [], packSize: ["30 Lens Pack", "90 Lens Pack"] },
       pricing: { mode: "flat", flat: { mrp: 310, priceDealer: 245, priceRetailer: 310, minOrderQty: 6 }, tiers: [] },
       variants: [
-        { id: "v1", name: "30 Lens Pack", sku: "ALDC-30", color: null, packSize: "30 Lens Pack", minOrderQty: 6, active: true },
-        { id: "v2", name: "90 Lens Pack", sku: "ALDC-90", color: null, packSize: "90 Lens Pack", minOrderQty: 3, active: true }
+        { id: "v1", name: "30 Lens Pack", sku: "ANLDC-30", color: null, packSize: "30 Lens Pack", minOrderQty: 6, active: true },
+        { id: "v2", name: "90 Lens Pack", sku: "ANLDC-90", color: null, packSize: "90 Lens Pack", minOrderQty: 3, active: true }
       ]
     },
     {
       id: "p2",
       categoryId: "cat-plano",
       brandId: "b1",
-      name: "AquaLux Color",
-      sku: "AL-COLOR",
+      name: "Aura NetraLens Color",
+      sku: "ANL-COLOR",
       description: "Soft cosmetic lenses with breathable comfort and natural tones.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
@@ -159,16 +158,16 @@ const seed = {
       variantAxisValues: { color: ["Blue", "Hazel"], packSize: [] },
       pricing: { mode: "flat", flat: { mrp: 365, priceDealer: 295, priceRetailer: 365, minOrderQty: 4 }, tiers: [] },
       variants: [
-        { id: "v3", name: "Blue", sku: "ALC-BLUE", color: "Blue", packSize: null, minOrderQty: 4, active: true },
-        { id: "v4", name: "Hazel", sku: "ALC-HAZEL", color: "Hazel", packSize: null, minOrderQty: 4, active: true }
+        { id: "v3", name: "Blue", sku: "ANLC-BLUE", color: "Blue", packSize: null, minOrderQty: 4, active: true },
+        { id: "v4", name: "Hazel", sku: "ANLC-HAZEL", color: "Hazel", packSize: null, minOrderQty: 4, active: true }
       ]
     },
     {
       id: "p3",
       categoryId: "cat-optical-toric",
-      brandId: "b2",
-      name: "OptiWear Monthly Toric",
-      sku: "OW-MONTHLY-TORIC",
+      brandId: "b1",
+      name: "Aura NetraLens Monthly Toric",
+      sku: "ANL-MONTHLY-TORIC",
       description: "Monthly toric lens line for repeat B2B ordering.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
@@ -195,15 +194,15 @@ const seed = {
       variantAxisValues: { color: [], packSize: [] },
       pricing: { mode: "flat", flat: { mrp: 640, priceDealer: 520, priceRetailer: 640, minOrderQty: 6 }, tiers: [] },
       variants: [
-        { id: "v5", name: "Standard", sku: "OWMT-STD", color: null, packSize: null, minOrderQty: 6, active: true }
+        { id: "v5", name: "Standard", sku: "ANLMT-STD", color: null, packSize: null, minOrderQty: 6, active: true }
       ]
     },
     {
       id: "p4",
       categoryId: "cat-optical-sphere",
-      brandId: "b2",
-      name: "OptiWear Precision Monthly",
-      sku: "OW-PRECISION-MONTHLY",
+      brandId: "b1",
+      name: "Aura NetraLens Precision Monthly",
+      sku: "ANL-PRECISION-MONTHLY",
       description: "Extended-range monthly lens with pack- and power-tiered pricing.",
       thumbnailImageUrl: "",
       fullImageUrls: [],
@@ -243,8 +242,8 @@ const seed = {
         ]
       },
       variants: [
-        { id: "v6", name: "1 Pair Pack", sku: "OWPM-1PAIR", color: null, packSize: "1 Pair Pack", minOrderQty: 2, active: true },
-        { id: "v7", name: "3 Pair Pack", sku: "OWPM-3PAIR", color: null, packSize: "3 Pair Pack", minOrderQty: 1, active: true }
+        { id: "v6", name: "1 Pair Pack", sku: "ANLPM-1PAIR", color: null, packSize: "1 Pair Pack", minOrderQty: 2, active: true },
+        { id: "v7", name: "3 Pair Pack", sku: "ANLPM-3PAIR", color: null, packSize: "3 Pair Pack", minOrderQty: 1, active: true }
       ]
     }
   ],
@@ -259,8 +258,8 @@ const seed = {
       currentVersion: 2,
       notes: "Urgent dispatch requested.",
       lineItems: [
-        item("p1", "v1", "AquaLux", "AquaLux Daily Clear", "30 Lens Pack", -2.00, null, null, 12, 245, 12),
-        item("p2", "v3", "AquaLux", "AquaLux Color", "Blue", null, null, null, 4, 295, 12)
+        item("p1", "v1", "Aura NetraLens", "Aura NetraLens Daily Clear", "30 Lens Pack", -2.00, null, null, 12, 245, 12),
+        item("p2", "v3", "Aura NetraLens", "Aura NetraLens Color", "Blue", null, null, null, 4, 295, 12)
       ],
       createdAt: "2026-06-27T08:40:00.000Z",
       updatedAt: "2026-06-28T10:15:00.000Z",

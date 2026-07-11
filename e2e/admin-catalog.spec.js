@@ -57,7 +57,7 @@ test("switching to tiered pricing hides the flat pricing block", async ({ page }
 });
 
 test("admin can deactivate a product and it disappears from the dealer-facing catalog", async ({ page }) => {
-  const row = page.locator("tr", { hasText: "AquaLux Daily Clear" });
+  const row = page.locator("tr", { hasText: "Aura NetraLens Daily Clear" });
   await row.getByRole("button", { name: "Deactivate" }).click();
   await expect(row.getByText("Inactive")).toBeVisible();
 
@@ -65,5 +65,5 @@ test("admin can deactivate a product and it disappears from the dealer-facing ca
   await page.getByRole("button", { name: "Sign out" }).click();
   await login(page, "dealer@lensflow.local");
   await page.getByRole("button", { name: "Product Catalog" }).click();
-  await expect(page.getByRole("heading", { name: "AquaLux Daily Clear" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Aura NetraLens Daily Clear" })).toHaveCount(0);
 });
