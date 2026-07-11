@@ -18,7 +18,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with a MongoDB Atlas connection string.
+Edit `.env` with a MongoDB Atlas connection string and a `JWT_SECRET` (any long random string - used to sign login sessions).
 
 Run the API:
 
@@ -36,11 +36,14 @@ Open `http://localhost:4173`.
 
 ## Demo Login
 
-- Admin: `admin@lensflow.local`
-- Dealer: `dealer@lensflow.local`
-- Retailer: `retailer@lensflow.local`
+Passwords are real - verified server-side against a bcrypt hash, not client-side.
 
-Any password works in this prototype flow.
+- Admin: `admin@lensflow.local` / `admin123`
+- Ops staff: `ops@lensflow.local` / `ops123`
+- Dealer: `dealer@lensflow.local` / `dealer123`
+- Retailer: `retailer@lensflow.local` / `retailer123`
+
+Login issues a JWT (`JWT_SECRET`, 12h expiry) that the frontend sends as `Authorization: Bearer <token>` on every request.
 
 ## MongoDB Atlas
 
@@ -65,6 +68,7 @@ Set these Railway variables:
 NODE_ENV=production
 MONGODB_URI=your-mongodb-atlas-uri
 CORS_ORIGINS=https://your-vercel-app.vercel.app
+JWT_SECRET=a-long-random-string
 ```
 
 Railway will run:
@@ -99,10 +103,16 @@ The build writes `dist/config.js`, so the browser calls the Railway API instead 
 
 ## API
 
-- `GET /health` - API and database health.
-- `GET /api/state` - Fetch the shared OMS state from MongoDB.
-- `PUT /api/state` - Persist the shared OMS state.
-- `POST /api/reset-seed` - Reset seeded data only when `ALLOW_SEED_RESET=true`.
+- `GET /health` - API and database health (no auth).
+- `POST /api/auth/login` - `{ email, password }` -> `{ token, user }`. Verifies the bcrypt password hash server-side.
+- `POST /api/customer-actions/register` - `{ name, contactPerson, phone, email, password, gstin, line1, line2, city, state, pincode }`. Creates a `PendingApproval` customer. No auth required (that's the point of self-registration), but the account can't do anything until an admin approves it.
+- `POST /api/customer-actions/orders` - authenticated customer only. Submits the cart; price, GST and MOQ are resolved from the server-side catalog, never trusted from the client.
+- `PATCH /api/customer-actions/notification-preferences` - authenticated customer only. Updates the caller's own record.
+- `GET /api/state` - authenticated (admin or customer). Fetch the shared OMS state (password hashes are stripped before the response).
+- `PUT /api/state` - **admin only**. Persists the full shared OMS state; this is how the admin UI's approve/reject/suspend/catalog/order-status/admin-user actions all sync.
+- `POST /api/reset-seed` - **admin only**, and only when `ALLOW_SEED_RESET=true`.
+
+All mutating endpoints are rate-limited (`STATE_RATE_LIMIT_MAX`, `LOGIN_RATE_LIMIT_MAX`).
 
 ## Included Workflows
 

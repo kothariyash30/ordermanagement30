@@ -1,6 +1,15 @@
 const STORAGE_KEY = "oms-demo-state-v1";
+const TOKEN_STORAGE_KEY = "oms-auth-token-v1";
+const USER_STORAGE_KEY = "oms-auth-user-v1";
 const CONFIG = window.__OMS_CONFIG__ || {};
 const API_BASE_URL = String(CONFIG.apiBaseUrl || "").replace(/\/$/, "");
+const DEMO_PASSWORDS = {
+  "admin@lensflow.local": "admin123",
+  "dealer@lensflow.local": "dealer123",
+  "retailer@lensflow.local": "retailer123"
+};
+
+let authToken = null;
 
 const STATUSES = [
   "Order Received",
@@ -183,7 +192,6 @@ const seed = {
 seed.orders = seed.orders.map(withTotals);
 
 let state = clone(seed);
-let remoteSaveTimer = null;
 
 function item(productId, variantId, brand, productName, variantName, power, baseCurve, diameter, quantity, unitPrice, gstRate) {
   return {
@@ -209,24 +217,22 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-async function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  const localState = (() => {
-    if (!raw) return clone(seed);
-    try {
-      return { ...clone(seed), ...JSON.parse(raw) };
-    } catch {
-      return clone(seed);
-    }
-  })();
-  if (!API_BASE_URL) return localState;
-  try {
-    const remoteState = await apiRequest("/api/state");
-    return { ...clone(seed), ...remoteState };
-  } catch (error) {
-    console.warn("Using local state because the API is unavailable.", error);
-    return localState;
-  }
+function sessionFromUser(user) {
+  if (user.role === "admin") return { role: "admin", userId: user.id, name: user.name, email: user.email };
+  return { role: "customer", customerId: user.customerId, name: user.name, customerType: user.customerType, email: user.email };
+}
+
+function defaultViewForRole(role) {
+  return role === "admin" ? "dashboard" : "customer-dashboard";
+}
+
+function forceLogout(message) {
+  authToken = null;
+  sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(USER_STORAGE_KEY);
+  state = clone(seed);
+  render();
+  if (message) alert(message);
 }
 
 function saveState() {
@@ -235,26 +241,34 @@ function saveState() {
 }
 
 async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
-  });
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Request failed with ${response.status}`);
+    let message = `Request failed with ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // non-JSON error body: keep the generic message
+    }
+    if (response.status === 401 && state.session) {
+      forceLogout("Your session has expired. Please sign in again.");
+    }
+    throw new Error(message);
   }
   return response.json();
 }
 
 function queueRemoteSave() {
-  if (!API_BASE_URL) return;
-  clearTimeout(remoteSaveTimer);
-  remoteSaveTimer = setTimeout(() => {
-    apiRequest("/api/state", {
-      method: "PUT",
-      body: JSON.stringify({ state: sanitizeStateForPersistence(state) })
-    }).catch((error) => console.warn("Unable to sync state to API.", error));
-  }, 250);
+  // PUT /api/state is admin-only (see server/index.js); customer actions persist
+  // through their own dedicated endpoints (register/orders/notification-prefs),
+  // so there is nothing for a customer session to sync here.
+  if (!API_BASE_URL || state.session?.role !== "admin") return;
+  apiRequest("/api/state", {
+    method: "PUT",
+    body: JSON.stringify({ state: sanitizeStateForPersistence(state) })
+  }).catch((error) => console.warn("Unable to sync state to API.", error));
 }
 
 function sanitizeStateForPersistence(value) {
@@ -349,7 +363,7 @@ function shell(content, title, subtitle, actions = "") {
       ${appNav()}
       <main class="main">
         <div class="topbar">
-          <div><h1>${title}</h1>${subtitle ? `<p>${subtitle}</p>` : ""}</div>
+          <div><h1>${escapeHtml(title)}</h1>${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ""}</div>
           <div class="toolbar">${actions}</div>
         </div>
         ${content}
@@ -407,12 +421,12 @@ function loginForm() {
     <form class="panel grid" onsubmit="loginWithAccount(event)">
       <div class="section-title"><div><h2>Account login</h2><p>The system determines whether the signed-in customer is a dealer or retailer from the account master.</p></div></div>
       <div class="grid two">
-        ${field("email", "Email", true, "admin@lensflow.local", "email")}
-        ${field("password", "Password", true, "demo", "password")}
+        ${field("email", "Email", true, "", "email")}
+        ${field("password", "Password", true, "", "password")}
       </div>
       <button class="button">Sign in</button>
       <div class="notice">
-        Demo accounts: admin@lensflow.local, dealer@lensflow.local, retailer@lensflow.local. Any password works in this static prototype.
+        Demo accounts: admin@lensflow.local / admin123, dealer@lensflow.local / dealer123, retailer@lensflow.local / retailer123.
       </div>
       <div class="row-actions">
         <button type="button" class="button secondary" onclick="fillLogin('admin@lensflow.local')">Admin</button>
@@ -431,6 +445,7 @@ function registerForm() {
         ${field("contactPerson", "Contact person", true)}
         ${field("phone", "Phone", true)}
         ${field("email", "Email", true)}
+        ${field("password", "Password", true, "", "password")}
         ${field("gstin", "GSTIN", true)}
         ${field("line1", "Address line 1", true)}
         ${field("line2", "Address line 2", false)}
@@ -458,36 +473,39 @@ function escapeAttr(value) {
 }
 
 function fillLogin(email) {
-  const input = document.querySelector('input[name="email"]');
-  if (input) input.value = email;
+  const emailInput = document.querySelector('input[name="email"]');
+  const passwordInput = document.querySelector('input[name="password"]');
+  if (emailInput) emailInput.value = email;
+  if (passwordInput) passwordInput.value = DEMO_PASSWORDS[email] || "";
 }
 
-function loginWithAccount(event) {
+async function loginWithAccount(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target).entries());
-  const email = String(data.email || "").trim().toLowerCase();
-  const admin = state.adminUsers.find((entry) => entry.email.toLowerCase() === email);
-  if (admin) {
-    setState({ session: { role: "admin", userId: admin.id, name: admin.name, email: admin.email }, view: "dashboard" });
+  if (!API_BASE_URL) {
+    alert("The API is not configured. Authentication requires a running backend.");
     return;
   }
-  const customer = state.customers.find((entry) => entry.email.toLowerCase() === email);
-  if (!customer) {
-    alert("No account found for that email.");
-    return;
+  try {
+    const result = await apiRequest("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: data.email, password: data.password })
+    });
+    authToken = result.token;
+    sessionStorage.setItem(TOKEN_STORAGE_KEY, authToken);
+    sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(result.user));
+    const remoteState = await apiRequest("/api/state");
+    state = { ...clone(seed), ...remoteState, session: sessionFromUser(result.user), view: defaultViewForRole(result.user.role), cart: [] };
+    render();
+  } catch (error) {
+    alert(error.message || "Unable to sign in.");
   }
-  if (customer.status !== "Approved") {
-    alert(`This account is ${customer.status}. Admin approval is required before login.`);
-    return;
-  }
-  if (!customer.type) {
-    alert("This account has not been assigned as a dealer or retailer yet.");
-    return;
-  }
-  setState({ session: { role: "customer", customerId: customer.id, name: customer.name, customerType: customer.type, email: customer.email }, view: "customer-dashboard" });
 }
 
 function logout() {
+  authToken = null;
+  sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+  sessionStorage.removeItem(USER_STORAGE_KEY);
   setState({ session: null, view: "login", activeOrderId: null, activeCustomerId: null, selectedProductId: null });
 }
 
@@ -495,26 +513,35 @@ function go(view) {
   setState({ view, activeOrderId: null, activeCustomerId: null });
 }
 
-function registerCustomer(event) {
+async function registerCustomer(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target).entries());
-  const address = { line1: data.line1, line2: data.line2, city: data.city, state: data.state, pincode: data.pincode };
-  state.customers.push({
-    id: "c" + Date.now(),
-    type: "",
-    status: "PendingApproval",
-    name: data.name,
-    contactPerson: data.contactPerson,
-    phone: data.phone,
-    email: data.email,
-    gstin: data.gstin,
-    billingAddress: address,
-    shippingAddress: clone(address),
-    notificationPreferences: { email: true, sms: false, whatsapp: true }
-  });
-  saveState();
-  alert("Registration submitted. Admin approval is required before login and ordering.");
-  setState({ view: "login" });
+  if (!API_BASE_URL) {
+    alert("The API is not configured. Registration requires a running backend.");
+    return;
+  }
+  try {
+    await apiRequest("/api/customer-actions/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        contactPerson: data.contactPerson,
+        phone: data.phone,
+        email: data.email,
+        password: data.password,
+        gstin: data.gstin,
+        line1: data.line1,
+        line2: data.line2,
+        city: data.city,
+        state: data.state,
+        pincode: data.pincode
+      })
+    });
+    alert("Registration submitted. Admin approval is required before login and ordering.");
+    setState({ view: "login" });
+  } catch (error) {
+    alert(error.message || "Unable to submit registration.");
+  }
 }
 
 function adminDashboard() {
@@ -526,7 +553,7 @@ function adminDashboard() {
       ${metric("Open orders", openOrders.length, "Orders before Closed/Cancelled")}
       ${metric("Pending approvals", pendingCustomers.length, "Dealer/Retailer registrations")}
       ${metric("Revenue booked", money(revenue), "Includes GST")}
-      ${metric("Active products", state.products.filter((p) => p.active).length, "Across ${state.brands.length} brands")}
+      ${metric("Active products", state.products.filter((p) => p.active).length, `Across ${state.brands.length} brands`)}
     </div>
     <div class="grid two" style="margin-top:14px">
       <section class="panel">${pendingOrdersTable()}</section>
@@ -566,8 +593,8 @@ function ordersTable(rows, admin) {
       <tbody>${rows.map((order) => {
         const customer = byId(state.customers, order.customerId);
         return `<tr>
-          <td><strong>${order.orderNumber}</strong><br>${order.isEdited ? `<span class="badge warn">Edited</span>` : ""}</td>
-          <td>${customer?.name || "Customer"}<br><span class="badge">${order.customerType}</span></td>
+          <td><strong>${escapeHtml(order.orderNumber)}</strong><br>${order.isEdited ? `<span class="badge warn">Edited</span>` : ""}</td>
+          <td>${escapeHtml(customer?.name || "Customer")}<br><span class="badge">${escapeHtml(order.customerType)}</span></td>
           <td><span class="badge ${statusTone[order.status] || ""}">${order.status}</span></td>
           <td>${money(order.grandTotal)}</td>
           <td>${date(order.createdAt)}</td>
@@ -604,7 +631,7 @@ function orderDetail(orderId, admin) {
     <div class="split">
       <section class="panel">
         <div class="section-title">
-          <div><h2>${order.orderNumber} ${order.isEdited ? `<span class="badge warn">Edited</span>` : ""}</h2><p>${customer.name} - ${customer.type}</p></div>
+          <div><h2>${escapeHtml(order.orderNumber)} ${order.isEdited ? `<span class="badge warn">Edited</span>` : ""}</h2><p>${escapeHtml(customer.name)} - ${escapeHtml(customer.type)}</p></div>
           <span class="badge ${statusTone[order.status] || ""}">${order.status}</span>
         </div>
         ${lineItemsTable(order)}
@@ -616,15 +643,15 @@ function orderDetail(orderId, admin) {
       </section>
       <aside class="grid">
         ${controls}
-        <div class="panel"><div class="section-title"><h3>Status history</h3></div><div class="timeline">${order.statusHistory.map((entry) => `<div class="timeline-item"><strong>${entry.status}</strong><span>${date(entry.changedAt)}</span></div>`).join("")}</div></div>
-        <div class="panel"><div class="section-title"><h3>Version history</h3></div>${order.orderHistory?.length ? `<div class="timeline">${order.orderHistory.map((entry) => `<div class="timeline-item"><strong>Version ${entry.versionNumber}</strong><span>${date(entry.editedAt)} by ${entry.editedBy}</span><p>${entry.reason || entry.summary || "Order edited."}</p></div>`).join("")}</div>` : `<div class="empty">No edits recorded.</div>`}</div>
+        <div class="panel"><div class="section-title"><h3>Status history</h3></div><div class="timeline">${order.statusHistory.map((entry) => `<div class="timeline-item"><strong>${escapeHtml(entry.status)}</strong><span>${date(entry.changedAt)}</span></div>`).join("")}</div></div>
+        <div class="panel"><div class="section-title"><h3>Version history</h3></div>${order.orderHistory?.length ? `<div class="timeline">${order.orderHistory.map((entry) => `<div class="timeline-item"><strong>Version ${entry.versionNumber}</strong><span>${date(entry.editedAt)} by ${escapeHtml(entry.editedBy)}</span><p>${escapeHtml(entry.reason || entry.summary || "Order edited.")}</p></div>`).join("")}</div>` : `<div class="empty">No edits recorded.</div>`}</div>
       </aside>
     </div>`, title, "Order number, line items, totals, lifecycle and audit history.", `<button class="button secondary" onclick="go('${back}')">Back</button>`);
 }
 
 function lineItemsTable(order) {
   return `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Variant</th><th>Specifications</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead><tbody>
-    ${order.lineItems.map((line) => `<tr><td>${line.productName}<br><span class="badge">${line.brand}</span></td><td>${line.variantName}</td><td>Power ${line.specifications.power}<br>BC ${line.specifications.baseCurve}<br>Dia ${line.specifications.diameter}</td><td>${line.quantity}</td><td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td></tr>`).join("")}
+    ${order.lineItems.map((line) => `<tr><td>${escapeHtml(line.productName)}<br><span class="badge">${escapeHtml(line.brand)}</span></td><td>${escapeHtml(line.variantName)}</td><td>Power ${escapeHtml(line.specifications.power)}<br>BC ${escapeHtml(line.specifications.baseCurve)}<br>Dia ${escapeHtml(line.specifications.diameter)}</td><td>${line.quantity}</td><td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td></tr>`).join("")}
   </tbody></table></div>`;
 }
 
@@ -663,15 +690,15 @@ function printDoc(orderId, type) {
   const customer = byId(state.customers, order.customerId);
   const isInvoice = type === "invoice";
   const rows = order.lineItems.map((line) => `
-    <tr><td>${line.productName}</td><td>${line.variantName}</td><td>${line.specifications.power}, ${line.specifications.baseCurve}, ${line.specifications.diameter}</td><td>${line.quantity}</td>${isInvoice ? `<td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td>` : ""}</tr>`).join("");
+    <tr><td>${escapeHtml(line.productName)}</td><td>${escapeHtml(line.variantName)}</td><td>${escapeHtml(line.specifications.power)}, ${escapeHtml(line.specifications.baseCurve)}, ${escapeHtml(line.specifications.diameter)}</td><td>${line.quantity}</td>${isInvoice ? `<td>${money(line.unitPrice)}</td><td>${money(line.lineTotal)}</td>` : ""}</tr>`).join("");
   const win = window.open("", "_blank");
   win.document.write(`
-    <html><head><title>${isInvoice ? "Invoice" : "Shipping Label"} ${order.orderNumber}</title><link rel="stylesheet" href="./styles.css"></head>
+    <html><head><title>${isInvoice ? "Invoice" : "Shipping Label"} ${escapeHtml(order.orderNumber)}</title><link rel="stylesheet" href="./styles.css"></head>
     <body style="padding:28px;background:white">
-      <div class="section-title"><div><h1>${isInvoice ? "Invoice" : "Shipping Label"}</h1><p>${order.orderNumber} - ${date(order.createdAt)}</p></div><span class="badge">${order.status}</span></div>
+      <div class="section-title"><div><h1>${isInvoice ? "Invoice" : "Shipping Label"}</h1><p>${escapeHtml(order.orderNumber)} - ${date(order.createdAt)}</p></div><span class="badge">${escapeHtml(order.status)}</span></div>
       <section class="panel" style="box-shadow:none">
         <h3>${isInvoice ? "Billing address" : "Ship to"}</h3>
-        <p><strong>${customer.name}</strong><br>${customer.contactPerson}<br>${isInvoice ? address(customer.billingAddress) : address(customer.shippingAddress)}<br>Phone: ${customer.phone}${isInvoice ? `<br>GSTIN: ${customer.gstin}` : ""}</p>
+        <p><strong>${escapeHtml(customer.name)}</strong><br>${escapeHtml(customer.contactPerson)}<br>${isInvoice ? address(customer.billingAddress) : address(customer.shippingAddress)}<br>Phone: ${escapeHtml(customer.phone)}${isInvoice ? `<br>GSTIN: ${escapeHtml(customer.gstin)}` : ""}</p>
         <table><thead><tr><th>Product</th><th>Variant</th><th>Specifications</th><th>Qty</th>${isInvoice ? "<th>Unit</th><th>Total</th>" : ""}</tr></thead><tbody>${rows}</tbody></table>
         ${isInvoice ? `<div class="totals" style="margin-top:18px"><div><span>Subtotal</span><strong>${money(order.subTotal)}</strong></div><div><span>GST</span><strong>${money(order.gstAmount)}</strong></div><div><span>Grand total</span><strong>${money(order.grandTotal)}</strong></div></div>` : ""}
       </section>
@@ -746,7 +773,7 @@ function customerReviewDetail(id) {
     <div class="split">
       <section class="panel grid">
         <div class="section-title">
-          <div><h2>${escapeHtml(customer.name)}</h2><p>${escapeHtml(customer.contactPerson)} - <span class="badge ${statusTone[customer.status] || ""}">${customer.status}</span></p></div>
+          <div><h2>${escapeHtml(customer.name)}</h2><p>${escapeHtml(customer.contactPerson)} - <span class="badge ${statusTone[customer.status] || ""}">${escapeHtml(customer.status)}</span></p></div>
           ${customerTypeLabel(customer)}
         </div>
         <div class="grid two">
@@ -998,12 +1025,18 @@ function saveProduct(event, productId) {
 function productImageStyle(product, index = 0) {
   const url = product?.thumbnailImageUrl || product?.fullImageUrls?.[0];
   if (!url) return "";
-  return `background-image:url('${String(url).replaceAll("'", "%27")}')`;
+  const safeUrl = String(url).replaceAll("'", "%27");
+  // escapeAttr closes the double-quote attribute-breakout: a url containing a
+  // literal `"` can no longer end the surrounding style="..." attribute early.
+  return escapeAttr(`background-image:url('${safeUrl}')`);
 }
 
 function galleryPreview(urls) {
   if (!urls.length) return `<div class="empty">No gallery images added yet.</div>`;
-  return urls.map((url) => `<div class="gallery-thumb" style="background-image:url('${String(url).replaceAll("'", "%27")}')"></div>`).join("");
+  return urls.map((url) => {
+    const safeUrl = String(url).replaceAll("'", "%27");
+    return `<div class="gallery-thumb" style="${escapeAttr(`background-image:url('${safeUrl}')`)}"></div>`;
+  }).join("");
 }
 
 function loadThumbnailUpload(event) {
@@ -1051,10 +1084,10 @@ function reportsView() {
   }));
   return shell(`
     <div class="grid two">
-      <section class="panel"><div class="section-title"><h2>Sales by dealer/retailer</h2></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Orders</th><th>Total</th></tr></thead><tbody>${salesByCustomer.map((row) => `<tr><td>${row.c.name}</td><td>${row.orders.length}</td><td>${money(row.orders.reduce((sum, o) => sum + o.grandTotal, 0))}</td></tr>`).join("")}</tbody></table></div></section>
-      <section class="panel"><div class="section-title"><h2>Top products</h2></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead><tbody>${Object.entries(top).map(([name, val]) => `<tr><td>${name}</td><td>${val.qty}</td><td>${money(val.revenue)}</td></tr>`).join("")}</tbody></table></div></section>
+      <section class="panel"><div class="section-title"><h2>Sales by dealer/retailer</h2></div><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Orders</th><th>Total</th></tr></thead><tbody>${salesByCustomer.map((row) => `<tr><td>${escapeHtml(row.c.name)}</td><td>${row.orders.length}</td><td>${money(row.orders.reduce((sum, o) => sum + o.grandTotal, 0))}</td></tr>`).join("")}</tbody></table></div></section>
+      <section class="panel"><div class="section-title"><h2>Top products</h2></div><div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead><tbody>${Object.entries(top).map(([name, val]) => `<tr><td>${escapeHtml(name)}</td><td>${val.qty}</td><td>${money(val.revenue)}</td></tr>`).join("")}</tbody></table></div></section>
       <section class="panel">${pendingOrdersTable()}</section>
-      <section class="panel"><div class="section-title"><h2>Order aging</h2></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Status</th><th>Open days</th></tr></thead><tbody>${state.orders.filter((o) => !["Closed", "Cancelled"].includes(o.status)).map((o) => `<tr><td>${o.orderNumber}</td><td>${o.status}</td><td>${Math.max(1, Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000))}</td></tr>`).join("")}</tbody></table></div></section>
+      <section class="panel"><div class="section-title"><h2>Order aging</h2></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Status</th><th>Open days</th></tr></thead><tbody>${state.orders.filter((o) => !["Closed", "Cancelled"].includes(o.status)).map((o) => `<tr><td>${escapeHtml(o.orderNumber)}</td><td>${escapeHtml(o.status)}</td><td>${Math.max(1, Math.round((Date.now() - new Date(o.createdAt).getTime()) / 86400000))}</td></tr>`).join("")}</tbody></table></div></section>
     </div>`, "Reports", "Sales, pending orders, aging and best-selling products.");
 }
 
@@ -1063,7 +1096,7 @@ function notificationsView() {
     <section class="panel">
       <div class="section-title"><div><h2>Notification settings</h2><p>Configure channels independently by event and recipient.</p></div></div>
       <div class="table-wrap"><table><thead><tr><th>Event</th><th>Email</th><th>SMS</th><th>WhatsApp</th><th>Recipient</th></tr></thead><tbody>
-        ${state.notificationSettings.map((n, index) => `<tr><td>${n.event}</td>${["email","sms","whatsapp"].map((ch) => `<td><input type="checkbox" ${n.channelsEnabled[ch] ? "checked" : ""} onchange="toggleChannel(${index}, '${ch}', this.checked)"></td>`).join("")}<td><select onchange="setRecipient(${index}, this.value)"><option ${n.recipient === "customer" ? "selected" : ""}>customer</option><option ${n.recipient === "admin" ? "selected" : ""}>admin</option><option ${n.recipient === "both" ? "selected" : ""}>both</option></select></td></tr>`).join("")}
+        ${state.notificationSettings.map((n, index) => `<tr><td>${escapeHtml(n.event)}</td>${["email","sms","whatsapp"].map((ch) => `<td><input type="checkbox" ${n.channelsEnabled[ch] ? "checked" : ""} onchange="toggleChannel(${index}, '${ch}', this.checked)"></td>`).join("")}<td><select onchange="setRecipient(${index}, this.value)"><option ${n.recipient === "customer" ? "selected" : ""}>customer</option><option ${n.recipient === "admin" ? "selected" : ""}>admin</option><option ${n.recipient === "both" ? "selected" : ""}>both</option></select></td></tr>`).join("")}
       </tbody></table></div>
     </section>`, "Notifications", "Email, SMS and WhatsApp are modeled as swappable provider settings.");
 }
@@ -1082,7 +1115,7 @@ function adminUsersView() {
   return shell(`
     <section class="panel">
       <div class="section-title"><div><h2>Admin users</h2><p>Super Admin can create and remove staff accounts.</p></div><button class="button" onclick="addAdminUser()">Add admin user</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody>${state.adminUsers.map((u) => `<tr><td>${u.name}</td><td>${u.email}</td><td>${u.role}</td><td>${u.role === "Super Admin" ? "" : `<button class="button bad" onclick="removeAdminUser('${u.id}')">Remove</button>`}</td></tr>`).join("")}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody>${state.adminUsers.map((u) => `<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td><td>${u.role === "Super Admin" ? "" : `<button class="button bad" onclick="removeAdminUser('${u.id}')">Remove</button>`}</td></tr>`).join("")}</tbody></table></div>
     </section>`, "Admin User Management", "Single staff permission tier plus Super Admin ownership.");
 }
 
@@ -1119,8 +1152,8 @@ function catalogView() {
         <article class="card catalog-card">
           <div class="product-art ${index % 2 ? "alt" : ""}" style="${productImageStyle(p, index)}"></div>
           <div class="catalog-body">
-            <h3>${p.name}</h3>
-            <p>${p.description}</p>
+            <h3>${escapeHtml(p.name)}</h3>
+            <p>${escapeHtml(p.description)}</p>
             <div class="row-actions">
               <span class="badge">${brandName(p.brandId)}</span>
               <span class="badge">MOQ ${p.minOrderQty}</span>
@@ -1147,15 +1180,15 @@ function productDetail(id) {
       <section class="panel">
         <div class="product-art" style="border-radius:8px;min-height:260px;margin-bottom:14px;${productImageStyle(p, 0)}"></div>
         ${gallery.length ? `<div class="gallery-strip" style="margin-bottom:14px">${galleryPreview(gallery)}</div>` : ""}
-        <div class="section-title"><div><h2>${p.name}</h2><p>${p.description}</p></div><span class="badge">${brandName(p.brandId)}</span></div>
+        <div class="section-title"><div><h2>${escapeHtml(p.name)}</h2><p>${escapeHtml(p.description)}</p></div><span class="badge">${brandName(p.brandId)}</span></div>
         <div class="grid two">
-          ${p.variants.map((v) => `<div class="line-item"><strong>${v.name}</strong><span>${v.sku}</span><span class="badge ok">${money(priceFor(v))}</span><span class="badge">MOQ ${v.minOrderQty || p.minOrderQty}</span></div>`).join("")}
+          ${p.variants.map((v) => `<div class="line-item"><strong>${escapeHtml(v.name)}</strong><span>${escapeHtml(v.sku)}</span><span class="badge ok">${money(priceFor(v))}</span><span class="badge">MOQ ${v.minOrderQty || p.minOrderQty}</span></div>`).join("")}
         </div>
       </section>
       <aside class="panel">
         <form class="grid" onsubmit="addToCart(event, '${p.id}')">
           <div class="section-title"><h3>Add specification line</h3></div>
-          <div class="field"><label>Variant</label><select name="variantId">${p.variants.map((v) => `<option value="${v.id}">${v.name} - ${money(priceFor(v))}</option>`).join("")}</select></div>
+          <div class="field"><label>Variant</label><select name="variantId">${p.variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)} - ${money(priceFor(v))}</option>`).join("")}</select></div>
           ${field("power", p.specFieldLabels.field1, true)}
           ${field("baseCurve", p.specFieldLabels.field2, true, "8.6")}
           ${field("diameter", p.specFieldLabels.field3, true, "14.2")}
@@ -1206,32 +1239,28 @@ function cartView() {
     </div>`, "Cart", "Submit a complete order for manual admin processing.");
 }
 
-function submitOrder() {
-  const customer = currentCustomer();
-  const order = withTotals({
-    id: "o" + Date.now(),
-    orderNumber: "ORD-2026-" + String(state.orders.length + 124).padStart(6, "0"),
-    customerId: customer.id,
-    customerType: customer.type,
-    status: "Order Received",
-    isEdited: false,
-    currentVersion: 1,
-    billingAddress: clone(customer.billingAddress),
-    shippingAddress: clone(customer.shippingAddress),
-    lineItems: clone(state.cart),
-    notes: "",
-    createdBy: customer.id,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    statusHistory: [history("Order Received", customer.id, new Date().toISOString())],
-    orderHistory: [],
-    invoiceGenerated: false,
-    shippingLabelGenerated: false
-  });
-  state.orders.unshift(order);
-  state.cart = [];
-  saveState();
-  setState({ view: "my-orders", activeOrderId: order.id });
+async function submitOrder() {
+  const cart = state.cart.map((line) => ({
+    productId: line.productId,
+    variantId: line.variantId,
+    quantity: line.quantity,
+    power: line.specifications.power,
+    baseCurve: line.specifications.baseCurve,
+    diameter: line.specifications.diameter
+  }));
+  try {
+    // Price/GST/MOQ are resolved server-side from the current catalog, not
+    // trusted from this local cart - see /api/customer-actions/orders.
+    const result = await apiRequest("/api/customer-actions/orders", {
+      method: "POST",
+      body: JSON.stringify({ cart })
+    });
+    state.orders.unshift(result.order);
+    state.cart = [];
+    setState({ view: "my-orders", activeOrderId: result.order.id });
+  } catch (error) {
+    alert(error.message || "Unable to submit order.");
+  }
 }
 
 function myOrdersView() {
@@ -1243,7 +1272,7 @@ function profileView() {
   const c = currentCustomer();
   return shell(`
     <section class="panel grid">
-      <div class="section-title"><div><h2>${c.name}</h2><p>${c.type} account - <span class="badge ${statusTone[c.status]}">${c.status}</span></p></div></div>
+      <div class="section-title"><div><h2>${escapeHtml(c.name)}</h2><p>${escapeHtml(c.type)} account - <span class="badge ${statusTone[c.status]}">${escapeHtml(c.status)}</span></p></div></div>
       <div class="grid two">
         <div><h3>Billing address</h3><p>${address(c.billingAddress)}</p></div>
         <div><h3>Shipping address</h3><p>${address(c.shippingAddress)}</p></div>
@@ -1256,9 +1285,19 @@ function profileView() {
     </section>`, "Profile", "Addresses and channel-level notification preferences.");
 }
 
-function setPref(channel, checked) {
-  currentCustomer().notificationPreferences[channel] = checked;
-  saveState();
+async function setPref(channel, checked) {
+  const customer = currentCustomer();
+  const nextPrefs = { ...customer.notificationPreferences, [channel]: checked };
+  try {
+    await apiRequest("/api/customer-actions/notification-preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ notificationPreferences: nextPrefs })
+    });
+    customer.notificationPreferences = nextPrefs;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    alert(error.message || "Unable to update notification preferences.");
+  }
 }
 
 function download(filename, content) {
@@ -1273,7 +1312,23 @@ function download(filename, content) {
 
 async function initialize() {
   document.getElementById("app").innerHTML = `<div class="empty" style="margin:24px">Loading order management workspace...</div>`;
-  state = await loadState();
+  authToken = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+  const storedUser = sessionStorage.getItem(USER_STORAGE_KEY);
+  if (API_BASE_URL && authToken && storedUser) {
+    try {
+      const user = JSON.parse(storedUser);
+      const remoteState = await apiRequest("/api/state");
+      state = { ...clone(seed), ...remoteState, session: sessionFromUser(user), view: defaultViewForRole(user.role), cart: [] };
+      render();
+      return;
+    } catch (error) {
+      console.warn("Stored session is no longer valid.", error);
+      authToken = null;
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem(USER_STORAGE_KEY);
+    }
+  }
+  state = clone(seed);
   render();
 }
 

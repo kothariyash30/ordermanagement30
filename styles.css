@@ -594,7 +594,7 @@ tr:last-child td {
   .grid.two,
   .grid.three,
   .grid.four {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .auth-visual {

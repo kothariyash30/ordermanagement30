@@ -1,3 +1,19 @@
+import bcrypt from "bcryptjs";
+
+// Demo-only credentials, documented in README. Real self-registrations hash
+// whatever password the user actually chose (see /api/customer-actions/register).
+const DEMO_PASSWORDS = {
+  "admin@lensflow.local": "admin123",
+  "ops@lensflow.local": "ops123",
+  "dealer@lensflow.local": "dealer123",
+  "retailer@lensflow.local": "retailer123",
+  "north@example.com": "north123"
+};
+
+function demoPasswordHash(email) {
+  return bcrypt.hashSync(DEMO_PASSWORDS[email], 10);
+}
+
 const STATUSES = [
   "Order Received",
   "Awaiting Payment",
@@ -45,8 +61,8 @@ const seedState = {
   editingProductId: null,
   cart: [],
   adminUsers: [
-    { id: "a1", name: "Super Admin", email: "admin@lensflow.local", role: "Super Admin" },
-    { id: "a2", name: "Operations Staff", email: "ops@lensflow.local", role: "Admin User" }
+    { id: "a1", name: "Super Admin", email: "admin@lensflow.local", role: "Super Admin", passwordHash: demoPasswordHash("admin@lensflow.local") },
+    { id: "a2", name: "Operations Staff", email: "ops@lensflow.local", role: "Admin User", passwordHash: demoPasswordHash("ops@lensflow.local") }
   ],
   customers: [
     {
@@ -57,6 +73,7 @@ const seedState = {
       contactPerson: "Anika Mehta",
       phone: "+91 98765 21045",
       email: "dealer@lensflow.local",
+      passwordHash: demoPasswordHash("dealer@lensflow.local"),
       gstin: "27AABCC1234Q1Z5",
       billingAddress: { line1: "12 Market Road", line2: "Unit 4", city: "Mumbai", state: "Maharashtra", pincode: "400001" },
       shippingAddress: { line1: "12 Market Road", line2: "Unit 4", city: "Mumbai", state: "Maharashtra", pincode: "400001" },
@@ -70,6 +87,7 @@ const seedState = {
       contactPerson: "Rahul Shah",
       phone: "+91 99887 77665",
       email: "retailer@lensflow.local",
+      passwordHash: demoPasswordHash("retailer@lensflow.local"),
       gstin: "24AAACV9988M1Z7",
       billingAddress: { line1: "88 High Street", line2: "Shop 9", city: "Ahmedabad", state: "Gujarat", pincode: "380015" },
       shippingAddress: { line1: "88 High Street", line2: "Shop 9", city: "Ahmedabad", state: "Gujarat", pincode: "380015" },
@@ -83,6 +101,7 @@ const seedState = {
       contactPerson: "Meera Kapoor",
       phone: "+91 90909 10101",
       email: "north@example.com",
+      passwordHash: demoPasswordHash("north@example.com"),
       gstin: "07NORTH1234P1Z9",
       billingAddress: { line1: "Plot 18", line2: "Industrial Area", city: "Delhi", state: "Delhi", pincode: "110020" },
       shippingAddress: { line1: "Plot 18", line2: "Industrial Area", city: "Delhi", state: "Delhi", pincode: "110020" },
