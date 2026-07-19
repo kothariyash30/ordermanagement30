@@ -162,6 +162,17 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.order-line-row {
+  display: grid;
+  gap: 14px;
+}
+
+.order-line-row + .order-line-row {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 .panel,
 .card {
   background: var(--panel);

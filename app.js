@@ -937,7 +937,7 @@ function customersView() {
         <div class="row-actions"><button class="button secondary" onclick="simulateCustomerImport()">Import sample CSV</button><button class="button ghost" onclick="exportCustomers()">Export CSV</button></div>
       </div>
       <div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Contact</th><th>GSTIN</th><th>Action</th></tr></thead><tbody>
-      ${state.customers.map((c) => `<tr><td><strong>${escapeHtml(c.name)}</strong><br>${escapeHtml(c.contactPerson)}</td><td>${customerTypeLabel(c)}</td><td><span class="badge ${statusTone[c.status] || ""}">${c.status}</span></td><td>${escapeHtml(c.email)}<br>${escapeHtml(c.phone)}</td><td>${escapeHtml(c.gstin)}</td><td class="row-actions"><button class="button secondary" onclick="openCustomer('${c.id}')">Open</button>${c.status === "Approved" ? `<button class="button bad" onclick="setCustomerStatus('${c.id}','Suspended')">Suspend</button>` : ""}</td></tr>`).join("")}
+      ${state.customers.map((c) => `<tr><td><strong>${escapeHtml(c.name)}</strong><br>${escapeHtml(c.contactPerson)}</td><td>${customerTypeLabel(c)}</td><td><span class="badge ${statusTone[c.status] || ""}">${c.status}</span></td><td>${escapeHtml(c.email)}<br>${escapeHtml(c.phone)}</td><td>${escapeHtml(c.gstin)}</td><td class="row-actions"><button class="button secondary" onclick="openCustomer('${c.id}')">Open</button>${customerStatusActionButton(c)}</td></tr>`).join("")}
       </tbody></table></div>
     </section>`, "Dealer & Retailer Management", "Approval queue, master data, import/export and notification preferences.");
 }
@@ -983,7 +983,7 @@ function customerReviewDetail(id) {
       </div>
       <div class="row-actions">
         <button class="button secondary" onclick="updateCustomerType('${customer.id}')">Update type</button>
-        <button class="button bad" onclick="setCustomerStatus('${customer.id}','Suspended')">Suspend</button>
+        ${customerStatusActionButton(customer)}
       </div>
     </aside>`;
   return shell(`
@@ -1036,6 +1036,16 @@ function setCustomerStatus(id, status) {
   byId(state.customers, id).status = status;
   saveState();
   render();
+}
+
+function customerStatusActionButton(customer) {
+  if (customer.status === "Approved") {
+    return `<button class="button bad" onclick="setCustomerStatus('${customer.id}','Suspended')">Suspend</button>`;
+  }
+  if (customer.status === "Suspended") {
+    return `<button class="button" onclick="setCustomerStatus('${customer.id}','Approved')">Reactivate</button>`;
+  }
+  return "";
 }
 
 function simulateCustomerImport() {
@@ -1709,26 +1719,57 @@ function productDetail(id) {
       <aside class="panel">
         <form class="grid" onsubmit="addToCart(event, '${p.id}')">
           <div class="section-title"><h3>Place an order line</h3></div>
-          <div class="field"><label>Variant</label><select name="variantId" onchange="updatePricePreview('${p.id}')">${p.variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}</select></div>
-          ${category?.hasOpticalParameters ? `<div class="field"><label>Power</label><select name="power" onchange="updatePricePreview('${p.id}')">${powerOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
-          ${category?.hasCylAxis && cylOptions.length ? `<div class="field"><label>Cyl power</label><select name="cyl" onchange="updatePricePreview('${p.id}')">${cylOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
-          ${category?.hasCylAxis && axisOptions.length ? `<div class="field"><label>Axis</label><select name="axis" onchange="updatePricePreview('${p.id}')">${axisOptions.map((v) => `<option value="${v}">${escapeHtml(String(v))}°</option>`).join("")}</select></div>` : ""}
-          ${field("quantity", "Quantity", true, p.minOrderQty, "number")}
-          <div class="notice">Unit price: <strong id="pricePreview">${initialPrice}</strong></div>
-          <button class="button">Add to cart</button>
+          <div id="orderLineRows" data-next-index="1">${orderLineRowHtml(p, category, powerOptions, cylOptions, axisOptions, 0, initialPrice)}</div>
+          ${category?.hasOpticalParameters ? `<button type="button" class="button ghost" onclick="addOrderLineRow('${p.id}')">+ Add another power</button>` : ""}
+          <button class="button">Add all to cart</button>
         </form>
       </aside>
-    </div>`, "Product Detail", "Specifications are fixed per product; power/cyl/axis are selected per order line.", `<button class="button secondary" onclick="setState({selectedProductId:null})">Back</button>`);
+    </div>`, "Product Detail", "Specifications are fixed per product; add one or more power options below, then add them all to cart together.", `<button class="button secondary" onclick="setState({selectedProductId:null})">Back</button>`);
 }
 
-function updatePricePreview(productId) {
+// One row = one order line's worth of selections (variant/power/cyl/axis/qty).
+// Field names carry a per-row index suffix so several rows can coexist inside
+// the same <form> and addToCart() can read them all back via FormData - this
+// is what lets a customer add multiple power options for one product in a
+// single "Add all to cart" instead of reopening the product per power.
+function orderLineRowHtml(product, category, powerOptions, cylOptions, axisOptions, rowIndex, initialPriceText = "Select options to see price") {
+  return `
+    <div class="order-line-row" data-row-index="${rowIndex}">
+      ${rowIndex > 0 ? `<div class="row-actions" style="justify-content:flex-end"><button type="button" class="button ghost" onclick="removeOrderLineRow(${rowIndex})">Remove this power</button></div>` : ""}
+      <div class="field"><label>Variant</label><select name="variantId-${rowIndex}" onchange="updatePricePreview('${product.id}', ${rowIndex})">${product.variants.map((v) => `<option value="${v.id}">${escapeHtml(v.name)}</option>`).join("")}</select></div>
+      ${category?.hasOpticalParameters ? `<div class="field"><label>Power</label><select name="power-${rowIndex}" onchange="updatePricePreview('${product.id}', ${rowIndex})">${powerOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
+      ${category?.hasCylAxis && cylOptions.length ? `<div class="field"><label>Cyl power</label><select name="cyl-${rowIndex}" onchange="updatePricePreview('${product.id}', ${rowIndex})">${cylOptions.map((v) => `<option value="${v}">${escapeHtml(formatPowerValue(v))}</option>`).join("")}</select></div>` : ""}
+      ${category?.hasCylAxis && axisOptions.length ? `<div class="field"><label>Axis</label><select name="axis-${rowIndex}" onchange="updatePricePreview('${product.id}', ${rowIndex})">${axisOptions.map((v) => `<option value="${v}">${escapeHtml(String(v))}°</option>`).join("")}</select></div>` : ""}
+      ${field(`quantity-${rowIndex}`, "Quantity", true, product.minOrderQty, "number")}
+      <div class="notice">Unit price: <strong id="pricePreview-${rowIndex}">${initialPriceText}</strong></div>
+    </div>`;
+}
+
+function addOrderLineRow(productId) {
+  const product = byId(state.products, productId);
+  const category = categoryFor(product);
+  const powerOptions = category?.hasOpticalParameters ? expandRanges(product.opticalParameters?.powerRanges) : [];
+  const cylOptions = category?.hasCylAxis && product.opticalParameters?.cylPowerRange ? expandRanges([product.opticalParameters.cylPowerRange]) : [];
+  const axisOptions = category?.hasCylAxis && product.opticalParameters?.axisRange ? expandRanges([product.opticalParameters.axisRange]) : [];
+  const container = document.getElementById("orderLineRows");
+  const rowIndex = Number(container.dataset.nextIndex || "1");
+  container.insertAdjacentHTML("beforeend", orderLineRowHtml(product, category, powerOptions, cylOptions, axisOptions, rowIndex));
+  container.dataset.nextIndex = String(rowIndex + 1);
+  updatePricePreview(productId, rowIndex);
+}
+
+function removeOrderLineRow(rowIndex) {
+  document.querySelector(`.order-line-row[data-row-index="${rowIndex}"]`)?.remove();
+}
+
+function updatePricePreview(productId, rowIndex = 0) {
   const product = byId(state.products, productId);
   const customer = currentCustomer();
-  const variantSelect = document.querySelector('select[name="variantId"]');
-  const powerSelect = document.querySelector('select[name="power"]');
+  const variantSelect = document.querySelector(`select[name="variantId-${rowIndex}"]`);
+  const powerSelect = document.querySelector(`select[name="power-${rowIndex}"]`);
   const variant = product.variants.find((v) => v.id === variantSelect?.value) || product.variants[0];
   const power = powerSelect ? powerSelect.value : undefined;
-  const preview = document.getElementById("pricePreview");
+  const preview = document.getElementById(`pricePreview-${rowIndex}`);
   if (!preview) return;
   try {
     preview.textContent = money(resolveUnitPrice(product, variant, power, customer.type));
@@ -1740,27 +1781,38 @@ function updatePricePreview(productId) {
 function addToCart(event, productId) {
   event.preventDefault();
   const customer = currentCustomer();
-  const data = Object.fromEntries(new FormData(event.target).entries());
   const product = byId(state.products, productId);
   const category = categoryFor(product);
-  const variant = product.variants.find((v) => v.id === data.variantId);
-  const power = category?.hasOpticalParameters && data.power !== undefined && data.power !== "" ? Number(data.power) : null;
-  const cyl = category?.hasCylAxis && data.cyl !== undefined && data.cyl !== "" ? Number(data.cyl) : null;
-  const axis = category?.hasCylAxis && data.axis !== undefined && data.axis !== "" ? Number(data.axis) : null;
-  const quantity = Number(data.quantity);
-  const min = resolveMinOrderQty(product, variant, power);
-  if (quantity < min) {
-    alert(`Minimum order quantity for this selection is ${min}.`);
-    return;
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  const rowIndexes = [...new Set(Object.keys(data).map((key) => key.split("-").pop()))].sort((a, b) => Number(a) - Number(b));
+
+  const newLines = [];
+  for (const rowIndex of rowIndexes) {
+    const variant = product.variants.find((v) => v.id === data[`variantId-${rowIndex}`]);
+    const powerRaw = data[`power-${rowIndex}`];
+    const cylRaw = data[`cyl-${rowIndex}`];
+    const axisRaw = data[`axis-${rowIndex}`];
+    const power = category?.hasOpticalParameters && powerRaw !== undefined && powerRaw !== "" ? Number(powerRaw) : null;
+    const cyl = category?.hasCylAxis && cylRaw !== undefined && cylRaw !== "" ? Number(cylRaw) : null;
+    const axis = category?.hasCylAxis && axisRaw !== undefined && axisRaw !== "" ? Number(axisRaw) : null;
+    const quantity = Number(data[`quantity-${rowIndex}`]);
+    const rowLabel = `${variant.name}${power !== null ? ` @ ${formatPowerValue(power)}` : ""}`;
+    const min = resolveMinOrderQty(product, variant, power);
+    if (!Number.isFinite(quantity) || quantity < min) {
+      alert(`Minimum order quantity for ${rowLabel} is ${min}.`);
+      return;
+    }
+    let unitPrice;
+    try {
+      unitPrice = resolveUnitPrice(product, variant, power, customer.type);
+    } catch (error) {
+      alert(`${rowLabel}: ${error.message}`);
+      return;
+    }
+    newLines.push(item(product.id, variant.id, brandName(product.brandId), product.name, variant.name, power, cyl, axis, quantity, unitPrice, product.gstRate));
   }
-  let unitPrice;
-  try {
-    unitPrice = resolveUnitPrice(product, variant, power, customer.type);
-  } catch (error) {
-    alert(error.message);
-    return;
-  }
-  state.cart.push(item(product.id, variant.id, brandName(product.brandId), product.name, variant.name, power, cyl, axis, quantity, unitPrice, product.gstRate));
+
+  state.cart.push(...newLines);
   saveState();
   setState({ selectedProductId: null, view: "cart" });
 }

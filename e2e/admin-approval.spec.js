@@ -40,3 +40,26 @@ test("admin can suspend an approved customer", async ({ page }) => {
   await row.getByRole("button", { name: "Suspend" }).click();
   await expect(page.locator("tr", { hasText: "ClearSight Distributors" }).getByText("Suspended")).toBeVisible();
 });
+
+test("admin can reactivate a suspended customer and login access is restored", async ({ page, request }) => {
+  await page.getByRole("button", { name: "Dealers & Retailers" }).click();
+  const row = page.locator("tr", { hasText: "ClearSight Distributors" });
+  await row.getByRole("button", { name: "Suspend" }).click();
+  await expect(row.getByText("Suspended")).toBeVisible();
+  await waitForSync(page);
+
+  const suspendedLogin = await request.post("http://localhost:8080/api/auth/login", {
+    data: { email: "dealer@lensflow.local", password: "dealer123" }
+  });
+  expect(suspendedLogin.status()).toBe(403);
+
+  await expect(row.getByRole("button", { name: "Suspend" })).toHaveCount(0);
+  await row.getByRole("button", { name: "Reactivate" }).click();
+  await expect(row.getByText("Approved")).toBeVisible();
+  await waitForSync(page);
+
+  const reactivatedLogin = await request.post("http://localhost:8080/api/auth/login", {
+    data: { email: "dealer@lensflow.local", password: "dealer123" }
+  });
+  expect(reactivatedLogin.status()).toBe(200);
+});
