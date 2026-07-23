@@ -195,6 +195,23 @@ describe("resolveUnitPrice / resolveMinOrderQty (flat vs tiered pricing)", () =>
   });
 });
 
+describe("convertSpectacleRxToContactLens (mirrored client-side copy for the Vertex Calculator page)", () => {
+  test("matches the server-side implementation for a sphere-only Rx", async () => {
+    const window = await loadApp();
+    expect(window.convertSpectacleRxToContactLens(-10)).toEqual({ sphere: -9, cyl: 0 });
+  });
+
+  test("matches the server-side implementation for a toric Rx", async () => {
+    const window = await loadApp();
+    expect(window.convertSpectacleRxToContactLens(-6, -2)).toEqual({ sphere: -5.5, cyl: -1.75 });
+  });
+
+  test("throws a clear error for non-finite input, same as the server-side copy", async () => {
+    const window = await loadApp();
+    expect(() => window.convertSpectacleRxToContactLens(NaN)).toThrow("Sphere power must be a finite number.");
+  });
+});
+
 describe("orderStatusCounts (admin reports: order status queue)", () => {
   test("counts every workflow status, including zero-order statuses, from the seeded order", async () => {
     const window = await loadApp();

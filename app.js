@@ -416,6 +416,42 @@ function resolveMinOrderQty(product, variant, selectedPower) {
   return variant.minOrderQty || product.minOrderQty;
 }
 
+// Mirrors server/catalog.js exactly - keep both in sync. See that file for
+// the formula/reference; this is pure client-side math for the Vertex
+// Distance Calculator page, no server round-trip needed.
+const DEFAULT_VERTEX_DISTANCE_M = 0.012; // 12mm - standard assumption for a typical spectacle frame
+
+function applyVertexDistance(power, vertexDistanceMeters = DEFAULT_VERTEX_DISTANCE_M) {
+  const p = Number(power);
+  if (!Number.isFinite(p)) throw new Error("Power must be a finite number.");
+  if (!(vertexDistanceMeters > 0)) throw new Error("Vertex distance must be a positive number of meters.");
+  const denominator = 1 - vertexDistanceMeters * p;
+  if (Math.abs(denominator) < 1e-6) throw new Error("Power is too high to vertex-correct at this distance.");
+  return p / denominator;
+}
+
+function roundToQuarterDiopter(value) {
+  return Math.round(value * 4) / 4;
+}
+
+function convertSpectacleRxToContactLens(spherePower, cylPower = 0, vertexDistanceMeters = DEFAULT_VERTEX_DISTANCE_M) {
+  const sphere = Number(spherePower);
+  if (!Number.isFinite(sphere)) throw new Error("Sphere power must be a finite number.");
+  const cyl = Number(cylPower ?? 0);
+  if (!Number.isFinite(cyl)) throw new Error("Cylinder power must be a finite number.");
+
+  const correctedSphereMeridian = applyVertexDistance(sphere, vertexDistanceMeters);
+  if (!cyl) {
+    return { sphere: roundToQuarterDiopter(correctedSphereMeridian), cyl: 0 };
+  }
+
+  const correctedCylMeridian = applyVertexDistance(sphere + cyl, vertexDistanceMeters);
+  return {
+    sphere: roundToQuarterDiopter(correctedSphereMeridian),
+    cyl: roundToQuarterDiopter(correctedCylMeridian - correctedSphereMeridian)
+  };
+}
+
 function categoryFor(product) {
   return byId(state.categories, product.categoryId);
 }
@@ -535,6 +571,7 @@ function appNav() {
         ["orders", "Orders"],
         ["customers", "Dealers & Retailers"],
         ["catalog-admin", "Catalog"],
+        ["vertex-calculator", "Vertex Calculator"],
         ["reports", "Reports"],
         ["notifications", "Notifications"],
         ["admin-users", "Admin Users"],
@@ -543,6 +580,7 @@ function appNav() {
     : [
         ["customer-dashboard", "Dashboard"],
         ["catalog", "Product Catalog"],
+        ["vertex-calculator", "Vertex Calculator"],
         ["cart", `Cart (${state.cart.length})`],
         ["my-orders", "Orders"],
         ["profile", "Profile"]
@@ -588,6 +626,7 @@ function render() {
     orders: adminOrders,
     customers: customersView,
     "catalog-admin": catalogAdmin,
+    "vertex-calculator": vertexCalculatorView,
     reports: reportsView,
     notifications: notificationsView,
     "admin-users": adminUsersView,
@@ -664,10 +703,10 @@ function registerForm() {
     </form>`;
 }
 
-function field(name, label, required, value = "", type = "text") {
+function field(name, label, required, value = "", type = "text", onInput = "") {
   // step="any" on number inputs - without it the browser defaults to step="1"
   // and rejects any decimal value (e.g. a 0.25 power step) as "invalid".
-  return `<div class="field"><label>${escapeHtml(label)}</label><input type="${type}" name="${name}" value="${escapeAttr(value)}" ${type === "number" ? 'step="any"' : ""} ${required ? "required" : ""}></div>`;
+  return `<div class="field"><label>${escapeHtml(label)}</label><input type="${type}" name="${name}" value="${escapeAttr(value)}" ${type === "number" ? 'step="any"' : ""} ${required ? "required" : ""} ${onInput ? `oninput="${escapeAttr(onInput)}"` : ""}></div>`;
 }
 
 function escapeHtml(value) {
@@ -1442,6 +1481,69 @@ function exportProducts() {
   });
   const csv = ["Brand,Product Name,Variant/Tier,Pricing Mode,Price Dealer,Price Retailer,Min Order Qty,GST Rate,SKU"].concat(rows).join("\n");
   download("products-export.csv", csv);
+}
+
+function vertexCalculatorView() {
+  const defaultSphere = -6;
+  let initialResult = null;
+  let initialError = "";
+  try {
+    initialResult = convertSpectacleRxToContactLens(defaultSphere, 0, DEFAULT_VERTEX_DISTANCE_M);
+  } catch (error) {
+    initialError = error.message;
+  }
+  return shell(`
+    <div class="split">
+      <section class="panel grid">
+        <div class="section-title"><div><h3>Spectacle prescription</h3><p>Enter the spectacle Rx to see the equivalent contact lens power.</p></div></div>
+        <div class="grid two">
+          ${field("vxSphere", "Sphere power (D)", true, defaultSphere, "number", "updateVertexResult()")}
+          ${field("vxCyl", "Cylinder power (D, optional)", false, "", "number", "updateVertexResult()")}
+          ${field("vxAxis", "Axis (degrees, optional)", false, "", "number", "updateVertexResult()")}
+          ${field("vxDistance", "Vertex distance (mm)", true, DEFAULT_VERTEX_DISTANCE_M * 1000, "number", "updateVertexResult()")}
+        </div>
+      </section>
+      <aside class="panel" id="vertexResult">${vertexResultHtml(initialResult, initialError)}</aside>
+    </div>`, "Vertex Distance Calculator", "Converts a spectacle prescription to the equivalent contact lens power, correcting for vertex distance. Not part of the order flow - a reference tool only.");
+}
+
+function vertexResultHtml(result, error) {
+  if (error) {
+    return `<div class="section-title"><h3>Contact lens power</h3></div><div class="notice bad">${escapeHtml(error)}</div>`;
+  }
+  if (!result) {
+    return `<div class="section-title"><h3>Contact lens power</h3></div><div class="empty">Enter a sphere power to see the converted result.</div>`;
+  }
+  const hasAxis = result.axis !== null && result.axis !== undefined && Number.isFinite(result.axis);
+  return `
+    <div class="section-title"><h3>Contact lens power</h3><p>Rounded to the nearest 0.25D.</p></div>
+    <div class="totals">
+      <div><span>Sphere</span><strong>${formatPowerValue(result.sphere)}</strong></div>
+      ${result.cyl ? `<div><span>Cylinder</span><strong>${formatPowerValue(result.cyl)}</strong></div>` : ""}
+      ${hasAxis ? `<div><span>Axis</span><strong>${result.axis}&deg;</strong></div>` : ""}
+    </div>`;
+}
+
+function updateVertexResult() {
+  const sphereRaw = document.querySelector('[name="vxSphere"]')?.value ?? "";
+  const cylRaw = document.querySelector('[name="vxCyl"]')?.value ?? "";
+  const axisRaw = document.querySelector('[name="vxAxis"]')?.value ?? "";
+  const distanceRaw = document.querySelector('[name="vxDistance"]')?.value ?? "";
+  const panel = document.getElementById("vertexResult");
+  if (!panel) return;
+
+  if (sphereRaw === "") {
+    panel.innerHTML = vertexResultHtml(null);
+    return;
+  }
+
+  const vertexDistanceMeters = (distanceRaw === "" ? DEFAULT_VERTEX_DISTANCE_M * 1000 : Number(distanceRaw)) / 1000;
+  try {
+    const result = convertSpectacleRxToContactLens(Number(sphereRaw), cylRaw === "" ? 0 : Number(cylRaw), vertexDistanceMeters);
+    panel.innerHTML = vertexResultHtml({ ...result, axis: axisRaw === "" ? null : Number(axisRaw) });
+  } catch (error) {
+    panel.innerHTML = vertexResultHtml(null, error.message);
+  }
 }
 
 function orderStatusCounts() {

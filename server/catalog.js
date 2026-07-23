@@ -99,6 +99,52 @@ function resolveMinOrderQty(product, variant, selectedPower) {
   return variant.minOrderQty || product.minOrderQty;
 }
 
+// Contact lenses sit directly on the cornea, while a spectacle prescription
+// is measured at some distance in front of the eye (the "vertex distance").
+// Past roughly +/-4.00D that gap changes the effective power enough to
+// matter clinically, so a spectacle Rx has to be vertex-corrected before
+// it's a valid contact lens power. Formula and the meridian method for
+// toric Rx: Bennett & Rabbetts, "Clinical Visual Optics".
+const DEFAULT_VERTEX_DISTANCE_M = 0.012; // 12mm - standard assumption for a typical spectacle frame
+
+function applyVertexDistance(power, vertexDistanceMeters = DEFAULT_VERTEX_DISTANCE_M) {
+  const p = Number(power);
+  if (!Number.isFinite(p)) throw new Error("Power must be a finite number.");
+  if (!(vertexDistanceMeters > 0)) throw new Error("Vertex distance must be a positive number of meters.");
+  const denominator = 1 - vertexDistanceMeters * p;
+  if (Math.abs(denominator) < 1e-6) throw new Error("Power is too high to vertex-correct at this distance.");
+  return p / denominator;
+}
+
+function roundToQuarterDiopter(value) {
+  return Math.round(value * 4) / 4;
+}
+
+// Converts a spectacle prescription to the equivalent contact lens power at
+// the corneal plane. Cylinder is corrected via the standard meridian method:
+// the sphere meridian and the sphere+cylinder meridian are each vertex-
+// corrected independently, and the corrected cylinder is their difference.
+// Works with either plus- or minus-cylinder notation, as long as cylPower's
+// sign matches how the sphere is expressed. Axis is unaffected by vertex
+// distance - callers should carry the original axis over unchanged.
+function convertSpectacleRxToContactLens(spherePower, cylPower = 0, vertexDistanceMeters = DEFAULT_VERTEX_DISTANCE_M) {
+  const sphere = Number(spherePower);
+  if (!Number.isFinite(sphere)) throw new Error("Sphere power must be a finite number.");
+  const cyl = Number(cylPower ?? 0);
+  if (!Number.isFinite(cyl)) throw new Error("Cylinder power must be a finite number.");
+
+  const correctedSphereMeridian = applyVertexDistance(sphere, vertexDistanceMeters);
+  if (!cyl) {
+    return { sphere: roundToQuarterDiopter(correctedSphereMeridian), cyl: 0 };
+  }
+
+  const correctedCylMeridian = applyVertexDistance(sphere + cyl, vertexDistanceMeters);
+  return {
+    sphere: roundToQuarterDiopter(correctedSphereMeridian),
+    cyl: roundToQuarterDiopter(correctedCylMeridian - correctedSphereMeridian)
+  };
+}
+
 export {
   expandRangeSegment,
   expandRanges,
@@ -106,5 +152,8 @@ export {
   isValueInRanges,
   generateVariants,
   resolveUnitPrice,
-  resolveMinOrderQty
+  resolveMinOrderQty,
+  DEFAULT_VERTEX_DISTANCE_M,
+  applyVertexDistance,
+  convertSpectacleRxToContactLens
 };
