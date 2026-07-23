@@ -40,6 +40,33 @@ test("admin can add a new sphere-power product and it appears in the catalog tab
   await expect(page.locator("tr", { hasText: "TestLens Extreme" }).getByText("Blue")).toBeVisible();
 });
 
+test("uploading a non-image file for the thumbnail is rejected with an alert", async ({ page }) => {
+  await page.getByRole("button", { name: "Add product" }).click();
+  const fileInput = page.locator('input[type="file"]').first();
+
+  let alertMessage = "";
+  page.on("dialog", async (dialog) => {
+    alertMessage = dialog.message();
+    await dialog.accept();
+  });
+  await fileInput.setInputFiles({ name: "not-an-image.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
+  expect(alertMessage).toContain("is not an image file");
+});
+
+test("uploading an oversized image for the thumbnail is rejected with an alert", async ({ page }) => {
+  await page.getByRole("button", { name: "Add product" }).click();
+  const fileInput = page.locator('input[type="file"]').first();
+
+  let alertMessage = "";
+  page.on("dialog", async (dialog) => {
+    alertMessage = dialog.message();
+    await dialog.accept();
+  });
+  const oversizedBuffer = Buffer.alloc(4 * 1024 * 1024); // 4MB, over the 3MB cap
+  await fileInput.setInputFiles({ name: "huge.png", mimeType: "image/png", buffer: oversizedBuffer });
+  expect(alertMessage).toContain("larger than 3MB");
+});
+
 test("selecting a plano category hides the optical parameters block", async ({ page }) => {
   await page.getByRole("button", { name: "Add product" }).click();
   await expect(page.locator("#opticalParamsBlock")).toBeVisible();

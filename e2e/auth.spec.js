@@ -22,14 +22,14 @@ test("approved retailer can log in and sees the customer dashboard", async ({ pa
   await expect(page.getByRole("heading", { name: "Customer Dashboard" })).toBeVisible();
 });
 
-test("unknown email is rejected with an alert", async ({ page }) => {
+test("unknown email is rejected with a generic alert (not distinguishable from a wrong password)", async ({ page }) => {
   // Login now makes a real network round-trip before alerting, so the dialog
   // no longer fires synchronously within the click - wait for it explicitly
   // instead of reading a variable immediately after the triggering action.
   const [dialog] = await Promise.all([page.waitForEvent("dialog"), login(page, "nobody@example.com")]);
   const message = dialog.message();
   await dialog.accept();
-  expect(message).toContain("No account found");
+  expect(message).toContain("Invalid email or password");
 });
 
 test("pending-approval account cannot log in", async ({ page }) => {

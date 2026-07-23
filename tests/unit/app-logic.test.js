@@ -229,6 +229,18 @@ describe("orderStatusCounts (admin reports: order status queue)", () => {
   });
 });
 
+describe("sanitizeStateForPersistence (outbound generic state sync)", () => {
+  test("strips integrationConfigs so third-party credentials aren't retransmitted on every unrelated admin action", async () => {
+    const window = await loadApp();
+    const stateWithSecrets = {
+      customers: [], adminUsers: [], brands: [], categories: [], products: [], orders: [], notificationSettings: [], cart: [],
+      integrationConfigs: { gmail: { enabled: true, emailAddress: "x", appPassword: "super-secret", senderName: "y" } }
+    };
+    const persisted = window.sanitizeStateForPersistence(stateWithSecrets);
+    expect(persisted.integrationConfigs).toBeUndefined();
+  });
+});
+
 describe("initial application state", () => {
   // `state` is a top-level `let` in app.js, so unlike its function
   // declarations it is not exposed as window.state in a classic script.

@@ -147,6 +147,21 @@ describe("POST /api/auth/login", () => {
     const body = await response.json();
     expect(body.error).toContain("PendingApproval");
   });
+
+  test("gives the exact same error for an unknown email as for a wrong password, so accounts can't be enumerated", async () => {
+    const wrongPassword = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@lensflow.local", password: "not-the-password" })
+    });
+    const unknownEmail = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "nobody-registered@example.com", password: "whatever123" })
+    });
+    expect(wrongPassword.status).toBe(unknownEmail.status);
+    expect((await wrongPassword.json()).error).toBe((await unknownEmail.json()).error);
+  });
 });
 
 describe("POST /api/customer-actions/register", () => {
@@ -239,36 +254,120 @@ describe("GET /api/state", () => {
     const customerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(customerToken) })).json();
     expect(customerView.integrationConfigs).toBeUndefined();
   });
+
+  test("a customer session only ever sees its own customer record, never other businesses'", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    const dealerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(dealerToken) })).json();
+    expect(dealerView.customers).toHaveLength(1);
+    expect(dealerView.customers[0].email).toBe("dealer@lensflow.local");
+  });
+
+  test("a customer session never sees another customer's orders", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    await fetch(`${BASE_URL}/api/customer-actions/orders`, {
+      method: "POST",
+      headers: authHeaders(dealerToken),
+      body: JSON.stringify({ cart: [{ productId: "p1", variantId: "v1", quantity: 6, power: -2.00 }] })
+    });
+
+    const retailerToken = await loginAs("retailer@lensflow.local");
+    const retailerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(retailerToken) })).json();
+    expect(retailerView.orders.every((order) => order.customerId !== "c1")).toBe(true);
+  });
+
+  test("a customer session never sees the admin/staff directory", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    const dealerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(dealerToken) })).json();
+    expect(dealerView.adminUsers).toEqual([]);
+  });
+
+  test("a dealer never sees retailer pricing and a retailer never sees dealer pricing", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    const dealerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(dealerToken) })).json();
+    const dealerProduct = dealerView.products.find((p) => p.id === "p1");
+    expect(dealerProduct.pricing.flat).not.toHaveProperty("priceRetailer");
+    expect(dealerProduct.pricing.flat).toHaveProperty("priceDealer");
+
+    const retailerToken = await loginAs("retailer@lensflow.local");
+    const retailerView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(retailerToken) })).json();
+    const retailerProduct = retailerView.products.find((p) => p.id === "p1");
+    expect(retailerProduct.pricing.flat).not.toHaveProperty("priceDealer");
+    expect(retailerProduct.pricing.flat).toHaveProperty("priceRetailer");
+  });
+
+  test("an admin session still sees every customer, every order and both pricing tiers", async () => {
+    const adminToken = await loginAs("admin@lensflow.local");
+    const adminView = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(adminToken) })).json();
+    expect(adminView.customers.length).toBeGreaterThan(1);
+    const product = adminView.products.find((p) => p.id === "p1");
+    expect(product.pricing.flat).toHaveProperty("priceDealer");
+    expect(product.pricing.flat).toHaveProperty("priceRetailer");
+  });
 });
 
 describe("integration configurations (Gmail/WhatsApp/SMS credentials)", () => {
-  test("an admin can save integration credentials via PUT /api/state and read them back", async () => {
+  const VALID_CONFIGS = {
+    gmail: { enabled: true, emailAddress: "orders@lensflow.local", appPassword: "app-pass-1234", senderName: "LensFlow Orders" },
+    whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
+    sms: { enabled: true, provider: "Twilio", apiKey: "sms-key-5678", senderId: "LNSFLW" }
+  };
+
+  test("an admin can save integration credentials via the dedicated endpoint and read them back", async () => {
     const token = await loginAs("admin@lensflow.local");
-    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
-    const updated = {
-      ...current,
-      integrationConfigs: {
-        gmail: { enabled: true, emailAddress: "orders@lensflow.local", appPassword: "app-pass-1234", senderName: "LensFlow Orders" },
-        whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
-        sms: { enabled: true, provider: "Twilio", apiKey: "sms-key-5678", senderId: "LNSFLW" }
-      }
-    };
-    const putResponse = await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(token), body: JSON.stringify({ state: updated }) });
+    const putResponse = await fetch(`${BASE_URL}/api/admin-actions/integration-configs`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify({ integrationConfigs: VALID_CONFIGS })
+    });
     expect(putResponse.status).toBe(200);
 
     const after = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
-    expect(after.integrationConfigs.gmail).toEqual({ enabled: true, emailAddress: "orders@lensflow.local", appPassword: "app-pass-1234", senderName: "LensFlow Orders" });
+    expect(after.integrationConfigs.gmail).toEqual(VALID_CONFIGS.gmail);
     expect(after.integrationConfigs.sms.senderId).toBe("LNSFLW");
   });
 
-  test("a customer token cannot write integration configs (PUT /api/state is admin-only)", async () => {
-    const token = await loginAs("dealer@lensflow.local");
-    const response = await fetch(`${BASE_URL}/api/state`, {
+  test("rejects a payload missing one of the required channel objects", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/integration-configs`, {
       method: "PUT",
       headers: authHeaders(token),
-      body: JSON.stringify({ state: { integrationConfigs: { gmail: { enabled: true, emailAddress: "x", appPassword: "y", senderName: "z" } } } })
+      body: JSON.stringify({ integrationConfigs: { gmail: VALID_CONFIGS.gmail } })
+    });
+    expect(response.status).toBe(400);
+  });
+
+  test("a customer token cannot write integration configs", async () => {
+    const token = await loginAs("dealer@lensflow.local");
+    const response = await fetch(`${BASE_URL}/api/admin-actions/integration-configs`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify({ integrationConfigs: VALID_CONFIGS })
     });
     expect(response.status).toBe(403);
+  });
+
+  test("the generic PUT /api/state sync can never change integrationConfigs, even if an admin sends one", async () => {
+    const token = await loginAs("admin@lensflow.local");
+    await fetch(`${BASE_URL}/api/admin-actions/integration-configs`, {
+      method: "PUT",
+      headers: authHeaders(token),
+      body: JSON.stringify({ integrationConfigs: VALID_CONFIGS })
+    });
+
+    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
+    const tampered = {
+      ...current,
+      integrationConfigs: {
+        gmail: { enabled: true, emailAddress: "attacker@evil.example", appPassword: "hijacked", senderName: "x" },
+        whatsapp: { enabled: false, businessPhoneNumberId: "", accessToken: "", fromPhoneNumber: "" },
+        sms: { enabled: false, provider: "", apiKey: "", senderId: "" }
+      }
+    };
+    const putResponse = await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(token), body: JSON.stringify({ state: tampered }) });
+    expect(putResponse.status).toBe(200);
+
+    const after = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(token) })).json();
+    expect(after.integrationConfigs.gmail.emailAddress).toBe("orders@lensflow.local");
   });
 });
 
@@ -665,6 +764,175 @@ describe("rate limiting on mutating endpoints", () => {
     const statuses = responses.map((r) => r.status);
     expect(statuses.slice(0, 3)).toEqual([200, 200, 200]);
     expect(statuses.slice(3)).toEqual([429, 429]);
+  });
+});
+
+describe("rate limiting on GET /api/state", () => {
+  const READ_LIMIT_PORT = PORT + 2;
+  const READ_LIMIT_BASE_URL = `http://localhost:${READ_LIMIT_PORT}`;
+  let readLimitedServer;
+  let readLimitedAdminToken;
+
+  beforeAll(async () => {
+    await dropExistingState(`${MONGODB_URI}_readlimit`);
+    readLimitedServer = spawn(process.execPath, [resolve(root, "server/index.js")], {
+      cwd: root,
+      env: {
+        ...process.env,
+        PORT: String(READ_LIMIT_PORT),
+        MONGODB_URI: `${MONGODB_URI}_readlimit`,
+        CORS_ORIGINS: "http://allowed-origin.example",
+        ALLOW_SEED_RESET: "true",
+        JWT_SECRET,
+        STATE_RATE_LIMIT_MAX: "1000",
+        LOGIN_RATE_LIMIT_MAX: "1000",
+        STATE_READ_RATE_LIMIT_MAX: "3"
+      },
+      stdio: "pipe"
+    });
+    await waitForHealth(READ_LIMIT_BASE_URL);
+    const loginResponse = await fetch(`${READ_LIMIT_BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@lensflow.local", password: "admin123" })
+    });
+    readLimitedAdminToken = (await loginResponse.json()).token;
+  });
+
+  afterAll(() => {
+    readLimitedServer?.kill();
+  });
+
+  test("returns 429 once the configured read limit is exceeded", async () => {
+    const responses = [];
+    for (let i = 0; i < 5; i += 1) {
+      responses.push(await fetch(`${READ_LIMIT_BASE_URL}/api/state`, { headers: authHeaders(readLimitedAdminToken) }));
+    }
+    const statuses = responses.map((r) => r.status);
+    expect(statuses.slice(0, 3)).toEqual([200, 200, 200]);
+    expect(statuses.slice(3)).toEqual([429, 429]);
+  });
+});
+
+describe("per-account login lockout", () => {
+  const LOCKOUT_PORT = PORT + 3;
+  const LOCKOUT_BASE_URL = `http://localhost:${LOCKOUT_PORT}`;
+  let lockoutServer;
+
+  beforeAll(async () => {
+    await dropExistingState(`${MONGODB_URI}_lockout`);
+    lockoutServer = spawn(process.execPath, [resolve(root, "server/index.js")], {
+      cwd: root,
+      env: {
+        ...process.env,
+        PORT: String(LOCKOUT_PORT),
+        MONGODB_URI: `${MONGODB_URI}_lockout`,
+        CORS_ORIGINS: "http://allowed-origin.example",
+        ALLOW_SEED_RESET: "true",
+        JWT_SECRET,
+        LOGIN_RATE_LIMIT_MAX: "1000",
+        ACCOUNT_LOCKOUT_MAX_ATTEMPTS: "3"
+      },
+      stdio: "pipe"
+    });
+    await waitForHealth(LOCKOUT_BASE_URL);
+  });
+
+  afterAll(() => {
+    lockoutServer?.kill();
+  });
+
+  async function attemptLogin(email, password) {
+    return fetch(`${LOCKOUT_BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+  }
+
+  test("locks out further attempts for that email after repeated failures, independent of IP-based rate limiting", async () => {
+    for (let i = 0; i < 3; i += 1) {
+      const response = await attemptLogin("dealer@lensflow.local", "wrong-password");
+      expect(response.status).toBe(401);
+    }
+    const lockedOut = await attemptLogin("dealer@lensflow.local", "wrong-password");
+    expect(lockedOut.status).toBe(429);
+
+    // Even the CORRECT password is refused while locked out.
+    const correctButLocked = await attemptLogin("dealer@lensflow.local", "dealer123");
+    expect(correctButLocked.status).toBe(429);
+  });
+
+  test("a successful login clears the failure count for that email", async () => {
+    for (let i = 0; i < 2; i += 1) {
+      await attemptLogin("retailer@lensflow.local", "wrong-password");
+    }
+    const success = await attemptLogin("retailer@lensflow.local", "retailer123");
+    expect(success.status).toBe(200);
+
+    // Two more failures after the reset shouldn't trip the (3-attempt) lockout yet.
+    const afterReset = await attemptLogin("retailer@lensflow.local", "wrong-password");
+    expect(afterReset.status).toBe(401);
+  });
+});
+
+describe("account re-validation on already-issued tokens", () => {
+  test("a suspended customer's existing token is rejected by GET /api/state, not just by login", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    const adminToken = await loginAs("admin@lensflow.local");
+
+    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(adminToken) })).json();
+    const suspended = { ...current, customers: current.customers.map((c) => (c.email === "dealer@lensflow.local" ? { ...c, status: "Suspended" } : c)) };
+    await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(adminToken), body: JSON.stringify({ state: suspended }) });
+
+    const response = await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(dealerToken) });
+    expect(response.status).toBe(401);
+  });
+
+  test("a suspended customer's existing token is rejected by notification-preferences too", async () => {
+    const dealerToken = await loginAs("dealer@lensflow.local");
+    const adminToken = await loginAs("admin@lensflow.local");
+
+    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(adminToken) })).json();
+    const suspended = { ...current, customers: current.customers.map((c) => (c.email === "dealer@lensflow.local" ? { ...c, status: "Suspended" } : c)) };
+    await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(adminToken), body: JSON.stringify({ state: suspended }) });
+
+    const response = await fetch(`${BASE_URL}/api/customer-actions/notification-preferences`, {
+      method: "PATCH",
+      headers: authHeaders(dealerToken),
+      body: JSON.stringify({ notificationPreferences: { email: false, sms: false, whatsapp: false } })
+    });
+    expect(response.status).toBe(401);
+  });
+
+  test("a removed admin's existing token is rejected, even for the generic state sync", async () => {
+    const superAdminToken = await loginAs("admin@lensflow.local");
+    const createResponse = await fetch(`${BASE_URL}/api/admin-actions/admin-users`, {
+      method: "POST",
+      headers: authHeaders(superAdminToken),
+      body: JSON.stringify({ name: "Soon Removed", email: "soon-removed@lensflow.local", password: "SoonRemoved1" })
+    });
+    expect(createResponse.status).toBe(201);
+    const newAdminLogin = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "soon-removed@lensflow.local", password: "SoonRemoved1" })
+    });
+    const removedAdminToken = (await newAdminLogin.json()).token;
+
+    const current = await (await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(superAdminToken) })).json();
+    const withoutNewAdmin = { ...current, adminUsers: current.adminUsers.filter((u) => u.email !== "soon-removed@lensflow.local") };
+    await fetch(`${BASE_URL}/api/state`, { method: "PUT", headers: authHeaders(superAdminToken), body: JSON.stringify({ state: withoutNewAdmin }) });
+
+    const stateResponse = await fetch(`${BASE_URL}/api/state`, { headers: authHeaders(removedAdminToken) });
+    expect(stateResponse.status).toBe(401);
+
+    const syncResponse = await fetch(`${BASE_URL}/api/state`, {
+      method: "PUT",
+      headers: authHeaders(removedAdminToken),
+      body: JSON.stringify({ state: current })
+    });
+    expect(syncResponse.status).toBe(401);
   });
 });
 

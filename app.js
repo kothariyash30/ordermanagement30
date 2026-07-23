@@ -475,7 +475,12 @@ function forceLogout(message) {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // integrationConfigs (Gmail app password, WhatsApp access token, SMS API
+  // key) has its own dedicated save path (saveIntegrationConfigs) - it's
+  // deliberately excluded from this local cache so those credentials don't
+  // sit in localStorage indefinitely as a side effect of unrelated actions.
+  const { integrationConfigs: _integrationConfigs, ...cacheableState } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cacheableState));
   queueRemoteSave();
 }
 
@@ -521,6 +526,12 @@ function sanitizeStateForPersistence(value) {
   next.addingAdminUser = false;
   next.resettingPasswordForAdminId = null;
   next.cart = [];
+  // integrationConfigs is saved through its own dedicated endpoint (see
+  // saveIntegrationConfigs) so these credentials aren't retransmitted to the
+  // server on every unrelated admin action - the server ignores this field
+  // on the generic sync regardless, but dropping it here too avoids sending
+  // secrets over the network more often than necessary.
+  delete next.integrationConfigs;
   return next;
 }
 
@@ -1442,9 +1453,23 @@ function galleryPreview(urls) {
   }).join("");
 }
 
+const MAX_IMAGE_UPLOAD_BYTES = 3 * 1024 * 1024; // 3MB
+
+function isAcceptableImageFile(file) {
+  if (!file.type.startsWith("image/")) {
+    alert(`${file.name} is not an image file.`);
+    return false;
+  }
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    alert(`${file.name} is larger than 3MB.`);
+    return false;
+  }
+  return true;
+}
+
 function loadThumbnailUpload(event) {
   const file = event.target.files?.[0];
-  if (!file) return;
+  if (!file || !isAcceptableImageFile(file)) return;
   const reader = new FileReader();
   reader.onload = () => {
     const input = event.target.closest(".field").querySelector('input[name="thumbnailImageUrl"]');
@@ -1456,7 +1481,7 @@ function loadThumbnailUpload(event) {
 }
 
 function loadGalleryUpload(event) {
-  const files = Array.from(event.target.files || []);
+  const files = Array.from(event.target.files || []).filter(isAcceptableImageFile);
   if (!files.length) return;
   const textarea = event.target.closest(".field").querySelector('textarea[name="fullImageUrls"]');
   const reads = files.map((file) => new Promise((resolve) => {
@@ -1710,10 +1735,10 @@ function configurationsView() {
     </form>`, "Configurations", "Third-party integrations for sending email, WhatsApp and SMS notifications. Admin-only - never sent to dealer/retailer sessions.");
 }
 
-function saveIntegrationConfigs(event) {
+async function saveIntegrationConfigs(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target).entries());
-  state.integrationConfigs = {
+  const integrationConfigs = {
     gmail: {
       enabled: data.gmailEnabled === "true",
       emailAddress: String(data.gmailEmailAddress || "").trim(),
@@ -1733,9 +1758,20 @@ function saveIntegrationConfigs(event) {
       senderId: String(data.smsSenderId || "").trim()
     }
   };
-  saveState();
-  alert("Configuration saved.");
-  render();
+  // Saved through its own dedicated endpoint, not the generic state sync -
+  // see saveState()/sanitizeStateForPersistence for why these credentials
+  // must never ride along with every unrelated admin action.
+  try {
+    await apiRequest("/api/admin-actions/integration-configs", {
+      method: "PUT",
+      body: JSON.stringify({ integrationConfigs })
+    });
+    state.integrationConfigs = integrationConfigs;
+    alert("Configuration saved.");
+    render();
+  } catch (error) {
+    alert(error.message || "Unable to save configuration.");
+  }
 }
 
 function customerDashboard() {

@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 
 const TOKEN_TTL = "12h";
+const JWT_ALGORITHM = "HS256";
 
 function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
@@ -13,11 +14,13 @@ function getJwtSecret() {
 }
 
 export function signToken(payload) {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_TTL });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_TTL, algorithm: JWT_ALGORITHM });
 }
 
 export function verifyToken(token) {
-  return jwt.verify(token, getJwtSecret());
+  // Pin the algorithm explicitly - without this, verify() infers it from the
+  // token itself, which is the shape of the classic "alg confusion" attack.
+  return jwt.verify(token, getJwtSecret(), { algorithms: [JWT_ALGORITHM] });
 }
 
 export async function hashPassword(password) {
@@ -27,6 +30,16 @@ export async function hashPassword(password) {
 export async function verifyPassword(password, hash) {
   if (!hash) return false;
   return bcrypt.compare(password, hash);
+}
+
+// A fixed (not freshly-generated) hash so the "no such account" login path
+// costs the same one bcrypt.compare as a real wrong-password rejection -
+// otherwise the response-time difference (instant reject vs. a real compare)
+// leaks whether an email is registered, same as a differently-worded message would.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("no-such-account-timing-equalizer", 10);
+
+export async function verifyAgainstDummyHash(password) {
+  return bcrypt.compare(password, DUMMY_PASSWORD_HASH);
 }
 
 // Used for accounts created through the generic admin state sync (e.g. "Add

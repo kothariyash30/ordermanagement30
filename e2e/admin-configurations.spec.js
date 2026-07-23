@@ -25,17 +25,22 @@ test("admin can save Gmail, WhatsApp and SMS integration settings, and they pers
   await page.locator('input[name="smsApiKey"]').fill("sms-key-5678");
   await page.locator('input[name="smsSenderId"]').fill("LNSFLW");
 
-  // saveIntegrationConfigs() has no network await, so its alert() fires
-  // synchronously within the click - a plain page.on("dialog") handler
-  // registered beforehand is the reliable pattern here (Promise.all +
-  // waitForEvent can lose the race against a same-tick dialog).
-  let alertMessage = "";
-  page.on("dialog", async (dialog) => {
-    alertMessage = dialog.message();
-    await dialog.accept();
-  });
-  await page.getByRole("button", { name: "Save configuration" }).click();
+  // saveIntegrationConfigs() now awaits a real save to its own dedicated
+  // endpoint before alerting, so the dialog reliably fires after the click's
+  // own promise resolves - Promise.all + waitForEvent is the correct pattern
+  // here (same as the other async-then-alert flows in this suite).
+  const [dialog] = await Promise.all([
+    page.waitForEvent("dialog"),
+    page.getByRole("button", { name: "Save configuration" }).click()
+  ]);
+  const alertMessage = dialog.message();
+  await dialog.accept();
   expect(alertMessage).toContain("Configuration saved");
+
+  // Saved credentials must never sit in localStorage - they're persisted
+  // through their own dedicated endpoint, not the generic state cache.
+  const cachedState = await page.evaluate(() => localStorage.getItem("oms-demo-state-v1"));
+  expect(JSON.parse(cachedState).integrationConfigs).toBeUndefined();
 
   await waitForSync(page);
   await page.reload();

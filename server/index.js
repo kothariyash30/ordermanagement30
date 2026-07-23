@@ -7,8 +7,17 @@ import mongoose from "mongoose";
 import { nanoid } from "nanoid";
 import rateLimit from "express-rate-limit";
 import { seedState } from "./seed-data.js";
-import { authenticate, hashPassword, requireAdmin, signToken, unusablePasswordHash, verifyPassword } from "./auth.js";
+import {
+  authenticate,
+  hashPassword,
+  requireAdmin,
+  signToken,
+  unusablePasswordHash,
+  verifyAgainstDummyHash,
+  verifyPassword
+} from "./auth.js";
 import { isValueInRanges, resolveMinOrderQty, resolveUnitPrice } from "./catalog.js";
+import { clearFailedLogins, isAccountLocked, recordFailedLogin } from "./login-lockout.js";
 
 const app = express();
 const port = Number(process.env.PORT || 8080);
@@ -46,6 +55,13 @@ const stateWriteLimiter = rateLimit({
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: Number(process.env.LOGIN_RATE_LIMIT_MAX || 20),
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const stateReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: Number(process.env.STATE_READ_RATE_LIMIT_MAX || 120),
   standardHeaders: true,
   legacyHeaders: false
 });
@@ -104,15 +120,60 @@ function reconcilePasswordHashes(existingList, incomingList) {
   });
 }
 
-function sanitizeStateForClient(state, role) {
+// Strips the pricing tier that doesn't apply to this customer type - a
+// retailer has no legitimate reason to see dealer (wholesale) pricing and
+// vice versa.
+function stripOtherTierPricing(product, customerType) {
+  if (!product.pricing) return product;
+  const dropField = customerType === "dealer" ? "priceRetailer" : "priceDealer";
+  const stripPrice = (entry) => {
+    if (!entry || typeof entry !== "object") return entry;
+    const { [dropField]: _dropped, ...rest } = entry;
+    return rest;
+  };
+  const pricing = { ...product.pricing };
+  if (pricing.flat) pricing.flat = stripPrice(pricing.flat);
+  if (pricing.tiers) pricing.tiers = pricing.tiers.map(stripPrice);
+  return { ...product, pricing };
+}
+
+function sanitizeStateForClient(state, user) {
   const next = JSON.parse(JSON.stringify(state));
   next.customers = (next.customers || []).map(({ passwordHash: _hash, ...rest }) => rest);
   next.adminUsers = (next.adminUsers || []).map(({ passwordHash: _hash, ...rest }) => rest);
-  // integrationConfigs holds third-party credentials (Gmail app password,
-  // WhatsApp access token, SMS gateway API key) - admin-only, never sent to
-  // a customer/dealer/retailer session even though they share this endpoint.
-  if (role !== "admin") delete next.integrationConfigs;
+
+  if (user.role !== "admin") {
+    // integrationConfigs holds third-party credentials (Gmail app password,
+    // WhatsApp access token, SMS gateway API key) - admin-only.
+    delete next.integrationConfigs;
+    // The rest of this shared document is other businesses' confidential
+    // data (GSTIN, contacts, order history, wholesale pricing) - a customer
+    // session must only ever see its own record, its own orders, and its
+    // own pricing tier, never the full shared state.
+    next.adminUsers = [];
+    next.notificationSettings = [];
+    next.customers = next.customers.filter((customer) => customer.id === user.customerId);
+    next.orders = (next.orders || []).filter((order) => order.customerId === user.customerId);
+    next.products = (next.products || []).map((product) => stripOtherTierPricing(product, user.customerType));
+  }
   return next;
+}
+
+// Re-checked on every authenticated request, not just at login: a token
+// stays cryptographically valid for its full 12h lifetime regardless of what
+// happens to the underlying account afterwards, so removing an admin or
+// suspending a customer must be enforced here too, not just at the point
+// where a *new* token would be issued.
+function checkAccountStillActive(doc, user) {
+  if (user.role === "admin") {
+    const stillExists = (doc.state.adminUsers || []).some((admin) => admin.id === user.id);
+    return stillExists ? null : "This admin account no longer exists. Please sign in again.";
+  }
+  const customer = (doc.state.customers || []).find((c) => c.id === user.customerId);
+  if (!customer || customer.status !== "Approved" || !customer.type) {
+    return "This account is no longer approved for access. Please sign in again.";
+  }
+  return null;
 }
 
 async function getStateDocument() {
@@ -139,27 +200,48 @@ app.post("/api/auth/login", loginLimiter, async (request, response, next) => {
       return;
     }
 
+    if (isAccountLocked(email)) {
+      response.status(429).json({ error: "Too many failed login attempts for this account. Try again later." });
+      return;
+    }
+
     const doc = await getStateDocument();
     const admin = doc.state.adminUsers.find((u) => u.email.toLowerCase() === email);
+    // Look up the customer regardless of whether an admin matched, so the
+    // "wrong password" bcrypt.compare below always runs against a real hash
+    // when either kind of account exists - only a truly unknown email falls
+    // through to the dummy-hash path.
+    const customer = !admin ? doc.state.customers.find((c) => c.email.toLowerCase() === email) : null;
+
+    // Deliberately the exact same status/message as a wrong password, and a
+    // real bcrypt.compare against a fixed dummy hash rather than an instant
+    // return - both the message and the response time would otherwise reveal
+    // whether this email has an account at all.
+    if (!admin && !customer) {
+      await verifyAgainstDummyHash(password);
+      recordFailedLogin(email);
+      response.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
     if (admin) {
       if (!(await verifyPassword(password, admin.passwordHash))) {
+        recordFailedLogin(email);
         response.status(401).json({ error: "Invalid email or password." });
         return;
       }
+      clearFailedLogins(email);
       const token = signToken({ role: "admin", id: admin.id, email: admin.email, name: admin.name });
       response.json({ token, user: { role: "admin", id: admin.id, email: admin.email, name: admin.name } });
       return;
     }
 
-    const customer = doc.state.customers.find((c) => c.email.toLowerCase() === email);
-    if (!customer) {
-      response.status(401).json({ error: "No account found for that email." });
-      return;
-    }
     if (!(await verifyPassword(password, customer.passwordHash))) {
+      recordFailedLogin(email);
       response.status(401).json({ error: "Invalid email or password." });
       return;
     }
+    clearFailedLogins(email);
     if (customer.status !== "Approved") {
       response.status(403).json({ error: `This account is ${customer.status}. Admin approval is required before login.` });
       return;
@@ -375,6 +457,12 @@ app.patch("/api/customer-actions/notification-preferences", stateWriteLimiter, a
       response.status(403).json({ error: "Only customer accounts can update notification preferences." });
       return;
     }
+    const doc = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(doc, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
     const prefs = request.body?.notificationPreferences;
     if (!prefs || typeof prefs !== "object") {
       response.status(400).json({ error: "notificationPreferences object is required." });
@@ -409,6 +497,11 @@ app.post("/api/admin-actions/admin-users", stateWriteLimiter, requireAdmin, asyn
     }
     const email = String(body.email).trim().toLowerCase();
     const doc = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(doc, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
     const emailTaken = doc.state.adminUsers.some((u) => u.email.toLowerCase() === email) ||
       doc.state.customers.some((c) => c.email.toLowerCase() === email);
     if (emailTaken) {
@@ -442,6 +535,11 @@ app.patch("/api/admin-actions/admin-users/:id/password", stateWriteLimiter, requ
       return;
     }
     const doc = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(doc, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
     const target = doc.state.adminUsers.find((u) => u.id === request.params.id);
     if (!target) {
       response.status(404).json({ error: "Admin user not found." });
@@ -463,10 +561,45 @@ app.patch("/api/admin-actions/admin-users/:id/password", stateWriteLimiter, requ
   }
 });
 
-app.get("/api/state", authenticate, async (request, response, next) => {
+const INTEGRATION_CHANNELS = ["gmail", "whatsapp", "sms"];
+
+app.put("/api/admin-actions/integration-configs", stateWriteLimiter, requireAdmin, async (request, response, next) => {
+  try {
+    const configs = request.body?.integrationConfigs;
+    if (!configs || typeof configs !== "object" || Array.isArray(configs)) {
+      response.status(400).json({ error: "An integrationConfigs object is required." });
+      return;
+    }
+    if (!INTEGRATION_CHANNELS.every((channel) => configs[channel] && typeof configs[channel] === "object")) {
+      response.status(400).json({ error: "integrationConfigs must include gmail, whatsapp and sms objects." });
+      return;
+    }
+    const doc = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(doc, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
+    await AppState.findOneAndUpdate(
+      { key: "primary" },
+      { $set: { "state.integrationConfigs": configs, revision: nanoid() } },
+      { new: true, lean: true }
+    );
+    response.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/state", stateReadLimiter, authenticate, async (request, response, next) => {
   try {
     const doc = await getStateDocument();
-    response.json(sanitizeStateForClient(doc.state, request.user.role));
+    const inactiveReason = checkAccountStillActive(doc, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
+    response.json(sanitizeStateForClient(doc.state, request.user));
   } catch (error) {
     next(error);
   }
@@ -490,9 +623,19 @@ app.put("/api/state", stateWriteLimiter, requireAdmin, async (request, response,
       return;
     }
     const current = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(current, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
+      return;
+    }
     const nextState = cleanState(request.body.state);
     nextState.customers = reconcilePasswordHashes(current.state.customers, nextState.customers);
     nextState.adminUsers = reconcilePasswordHashes(current.state.adminUsers, nextState.adminUsers);
+    // integrationConfigs has its own dedicated endpoint (PUT
+    // /api/admin-actions/integration-configs) so these third-party
+    // credentials aren't retransmitted on every unrelated admin action -
+    // the generic sync can never change them, whatever the client sends.
+    nextState.integrationConfigs = current.state.integrationConfigs;
     const doc = await AppState.findOneAndUpdate(
       { key: "primary" },
       { $set: { state: nextState, revision: nanoid() } },
@@ -504,10 +647,16 @@ app.put("/api/state", stateWriteLimiter, requireAdmin, async (request, response,
   }
 });
 
-app.post("/api/reset-seed", stateWriteLimiter, requireAdmin, async (_request, response, next) => {
+app.post("/api/reset-seed", stateWriteLimiter, requireAdmin, async (request, response, next) => {
   try {
     if (process.env.ALLOW_SEED_RESET !== "true") {
       response.status(403).json({ error: "Seed reset is disabled." });
+      return;
+    }
+    const current = await getStateDocument();
+    const inactiveReason = checkAccountStillActive(current, request.user);
+    if (inactiveReason) {
+      response.status(401).json({ error: inactiveReason });
       return;
     }
     const doc = await AppState.findOneAndUpdate(
