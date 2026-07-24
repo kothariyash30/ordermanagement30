@@ -17,7 +17,7 @@ export function signToken(payload) {
   return jwt.sign(payload, getJwtSecret(), { expiresIn: TOKEN_TTL, algorithm: JWT_ALGORITHM });
 }
 
-export function verifyToken(token) {
+function verifyToken(token) {
   // Pin the algorithm explicitly - without this, verify() infers it from the
   // token itself, which is the shape of the classic "alg confusion" attack.
   return jwt.verify(token, getJwtSecret(), { algorithms: [JWT_ALGORITHM] });

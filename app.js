@@ -349,13 +349,6 @@ function formatPowerValue(value) {
   return `${n > 0 ? "+" : ""}${n.toFixed(2)}`;
 }
 
-function isValueInRanges(value, segments) {
-  if (!segments || !segments.length) return true;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return false;
-  return expandRanges(segments).some((v) => Math.abs(v - n) < 1e-6);
-}
-
 function generateVariants(product) {
   const colors = product.variantAxisValues?.color?.length ? product.variantAxisValues.color : [null];
   const packSizes = product.variantAxisValues?.packSize?.length ? product.variantAxisValues.packSize : [null];

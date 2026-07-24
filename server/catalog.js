@@ -146,7 +146,6 @@ function convertSpectacleRxToContactLens(spherePower, cylPower = 0, vertexDistan
 }
 
 export {
-  expandRangeSegment,
   expandRanges,
   formatPowerValue,
   isValueInRanges,

@@ -176,6 +176,26 @@ function checkAccountStillActive(doc, user) {
   return null;
 }
 
+// Sends the 401 itself and returns true when inactive, so call sites read as
+// a single guard clause: `if (rejectIfInactive(doc, request.user, response)) return;`
+function rejectIfInactive(doc, user, response) {
+  const inactiveReason = checkAccountStillActive(doc, user);
+  if (inactiveReason) {
+    response.status(401).json({ error: inactiveReason });
+    return true;
+  }
+  return false;
+}
+
+function isPasswordTooShort(password) {
+  return !password || String(password).length < 8;
+}
+
+function isEmailTaken(doc, email) {
+  return doc.state.adminUsers.some((u) => u.email.toLowerCase() === email) ||
+    doc.state.customers.some((c) => c.email.toLowerCase() === email);
+}
+
 async function getStateDocument() {
   const existing = await AppState.findOne({ key: "primary" }).lean();
   if (existing) return existing;
@@ -275,15 +295,13 @@ app.post("/api/customer-actions/register", loginLimiter, async (request, respons
       response.status(400).json({ error: "All registration fields are required." });
       return;
     }
-    if (String(body.password).length < 8) {
+    if (isPasswordTooShort(body.password)) {
       response.status(400).json({ error: "Password must be at least 8 characters." });
       return;
     }
     const email = String(body.email).trim().toLowerCase();
     const doc = await getStateDocument();
-    const emailTaken = doc.state.customers.some((c) => c.email.toLowerCase() === email) ||
-      doc.state.adminUsers.some((u) => u.email.toLowerCase() === email);
-    if (emailTaken) {
+    if (isEmailTaken(doc, email)) {
       response.status(409).json({ error: "An account with that email already exists." });
       return;
     }
@@ -458,11 +476,7 @@ app.patch("/api/customer-actions/notification-preferences", stateWriteLimiter, a
       return;
     }
     const doc = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(doc, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(doc, request.user, response)) return;
     const prefs = request.body?.notificationPreferences;
     if (!prefs || typeof prefs !== "object") {
       response.status(400).json({ error: "notificationPreferences object is required." });
@@ -491,20 +505,14 @@ app.post("/api/admin-actions/admin-users", stateWriteLimiter, requireAdmin, asyn
       response.status(400).json({ error: "Name, email and password are required." });
       return;
     }
-    if (String(body.password).length < 8) {
+    if (isPasswordTooShort(body.password)) {
       response.status(400).json({ error: "Password must be at least 8 characters." });
       return;
     }
     const email = String(body.email).trim().toLowerCase();
     const doc = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(doc, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
-    const emailTaken = doc.state.adminUsers.some((u) => u.email.toLowerCase() === email) ||
-      doc.state.customers.some((c) => c.email.toLowerCase() === email);
-    if (emailTaken) {
+    if (rejectIfInactive(doc, request.user, response)) return;
+    if (isEmailTaken(doc, email)) {
       response.status(409).json({ error: "An account with that email already exists." });
       return;
     }
@@ -530,16 +538,12 @@ app.post("/api/admin-actions/admin-users", stateWriteLimiter, requireAdmin, asyn
 app.patch("/api/admin-actions/admin-users/:id/password", stateWriteLimiter, requireAdmin, async (request, response, next) => {
   try {
     const password = request.body?.password;
-    if (!password || String(password).length < 8) {
+    if (isPasswordTooShort(password)) {
       response.status(400).json({ error: "Password must be at least 8 characters." });
       return;
     }
     const doc = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(doc, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(doc, request.user, response)) return;
     const target = doc.state.adminUsers.find((u) => u.id === request.params.id);
     if (!target) {
       response.status(404).json({ error: "Admin user not found." });
@@ -575,11 +579,7 @@ app.put("/api/admin-actions/integration-configs", stateWriteLimiter, requireAdmi
       return;
     }
     const doc = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(doc, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(doc, request.user, response)) return;
     await AppState.findOneAndUpdate(
       { key: "primary" },
       { $set: { "state.integrationConfigs": configs, revision: nanoid() } },
@@ -594,11 +594,7 @@ app.put("/api/admin-actions/integration-configs", stateWriteLimiter, requireAdmi
 app.get("/api/state", stateReadLimiter, authenticate, async (request, response, next) => {
   try {
     const doc = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(doc, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(doc, request.user, response)) return;
     response.json(sanitizeStateForClient(doc.state, request.user));
   } catch (error) {
     next(error);
@@ -623,11 +619,7 @@ app.put("/api/state", stateWriteLimiter, requireAdmin, async (request, response,
       return;
     }
     const current = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(current, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(current, request.user, response)) return;
     const nextState = cleanState(request.body.state);
     nextState.customers = reconcilePasswordHashes(current.state.customers, nextState.customers);
     nextState.adminUsers = reconcilePasswordHashes(current.state.adminUsers, nextState.adminUsers);
@@ -654,11 +646,7 @@ app.post("/api/reset-seed", stateWriteLimiter, requireAdmin, async (request, res
       return;
     }
     const current = await getStateDocument();
-    const inactiveReason = checkAccountStillActive(current, request.user);
-    if (inactiveReason) {
-      response.status(401).json({ error: inactiveReason });
-      return;
-    }
+    if (rejectIfInactive(current, request.user, response)) return;
     const doc = await AppState.findOneAndUpdate(
       { key: "primary" },
       { $set: { state: cleanState(seedState), revision: nanoid() } },

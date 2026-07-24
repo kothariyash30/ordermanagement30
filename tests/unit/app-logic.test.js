@@ -115,27 +115,6 @@ describe("formatPowerValue", () => {
   });
 });
 
-describe("isValueInRanges", () => {
-  const ranges = [{ start: 0, end: -5.00, step: 0.25 }, { start: -5.50, end: -10.00, step: 0.50 }];
-
-  test("accepts a value that falls on the step grid", async () => {
-    const window = await loadApp();
-    expect(window.isValueInRanges(-2.00, ranges)).toBe(true);
-    expect(window.isValueInRanges(-10.00, ranges)).toBe(true);
-  });
-
-  test("rejects a value that does not fall on the step grid", async () => {
-    const window = await loadApp();
-    expect(window.isValueInRanges(-2.10, ranges)).toBe(false);
-    expect(window.isValueInRanges(-10.25, ranges)).toBe(false);
-  });
-
-  test("treats no configured ranges as accept-anything (plano/cosmetic products)", async () => {
-    const window = await loadApp();
-    expect(window.isValueInRanges(999, null)).toBe(true);
-  });
-});
-
 describe("generateVariants (variant axis cartesian product)", () => {
   test("generates one variant per color when only color is used", async () => {
     const window = await loadApp();

@@ -377,11 +377,6 @@ tr:last-child td {
     linear-gradient(135deg, #e5eaf2, #d6f0e9);
 }
 
-.product-art {
-  background-size: cover;
-  background-position: center;
-}
-
 .thumb-mini,
 .image-preview,
 .gallery-thumb {
@@ -586,10 +581,6 @@ tr:last-child td {
 .timeline-item span {
   color: var(--muted);
   font-size: 13px;
-}
-
-.mobile-only {
-  display: none;
 }
 
 @media (max-width: 980px) {
